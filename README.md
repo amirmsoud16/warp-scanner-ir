@@ -11,6 +11,10 @@
 - نمایش بهترین آی‌پی:پورت با کمترین پینگ و سرعت بالا
 - منوی ترمینالی باکسی و زیبا
 
+## نصب آسان 
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/install.sh)
+```
 ## نصب
 ```bash
 bash install.sh
