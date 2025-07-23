@@ -28,7 +28,7 @@ IPV6_FILE = 'ips-v6.txt'
 PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
 PORTS_RANDOM_COUNT = 5
 PORT_RANGE = (1000, 60000)
-IPS_PER_RANGE = 5
+IPS_PER_RANGE = 30
 TIMEOUT = 1.5
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
