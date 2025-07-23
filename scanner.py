@@ -31,7 +31,8 @@ PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
 PORTS_RANDOM_COUNT = 1000
 PORT_RANGE = (1000, 60000)
 IPS_PER_RANGE = 1000
-TIMEOUT = 1.5
+TIMEOUT = 0.5
+MAX_WORKERS = 100
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
 # --- Display Tools ---
@@ -253,7 +254,7 @@ def do_scan(filename, n_ip, n_port, my_country):
     # Progress bar for finding close IPs
     close_ips = []
     total = len(ips)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_ip = {executor.submit(geoip_lookup, ip): ip for ip in ips}
         for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
             country, city, org = future.result()
@@ -265,7 +266,7 @@ def do_scan(filename, n_ip, n_port, my_country):
     # Progress bar for scanning IPs and ports
     results = []
     total2 = len(close_ips)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_ip = {executor.submit(scan_ip_optimized, ip, n_port): ip for ip in close_ips}
         for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
             res = future.result()
