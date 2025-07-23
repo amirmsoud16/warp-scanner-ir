@@ -21,6 +21,8 @@ import requests
 import sys
 import base64
 import secrets
+import threading
+import itertools
 
 # Settings
 IPV4_FILE = 'ips-v4.txt'
@@ -123,23 +125,37 @@ def ping_udp(ip, port, timeout=TIMEOUT):
     except Exception:
         return False, None
 
-def test_ip_ports(ip, ports):
+def test_ip_ports_optimized(ip, main_ports, random_ports):
+    # ابتدا پورت‌های اصلی
     results = []
-    for port, proto in ports:
+    open_ports = []
+    for port, proto in main_ports:
         if proto == 'tcp':
             ok, latency = ping_tcp(ip, port)
         else:
             ok, latency = ping_udp(ip, port)
         results.append({'port': port, 'proto': proto, 'ok': ok, 'latency': latency})
-    return results
+        if ok:
+            open_ports.append({'port': port, 'proto': proto, 'latency': latency})
+    # اگر هیچ پورت اصلی باز نبود، پورت‌های رندوم را تست کن
+    if not open_ports:
+        for port, proto in random_ports:
+            if proto == 'tcp':
+                ok, latency = ping_tcp(ip, port)
+            else:
+                ok, latency = ping_udp(ip, port)
+            results.append({'port': port, 'proto': proto, 'ok': ok, 'latency': latency})
+            if ok:
+                open_ports.append({'port': port, 'proto': proto, 'latency': latency})
+    if not open_ports:
+        return None, results
+    best = min(open_ports, key=lambda x: x['latency'] if x['latency'] else 9999)
+    return best, results
 
-def scan_ip(ip, n_port):
-    ports = PORTS_MAIN.copy()
-    exclude = set(p for p, _ in ports)
-    for p in random_ports(n_port, exclude_ports=exclude):
-        ports.append((p, random.choice(['tcp', 'udp'])))
-    results = test_ip_ports(ip, ports)
-    best = min((r for r in results if r['ok']), key=lambda x: x['latency'] if x['latency'] else 9999, default=None)
+def scan_ip_optimized(ip, n_random_ports):
+    main_ports = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
+    random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(1000, 60000), n_random_ports)]
+    best, results = test_ip_ports_optimized(ip, main_ports, random_ports)
     country, city, org = geoip_lookup(ip)
     return {
         'ip': ip,
@@ -194,6 +210,28 @@ def show_wireguard_config(ip, port):
     print_boxed(["WireGuard config:"] + config)
     print_boxed(["Quick wg:// link:", uri])
 
+class Spinner:
+    def __init__(self, message="Loading..."):
+        self.spinner = itertools.cycle(['|', '/', '-', '\\'])
+        self.stop_running = False
+        self.message = message
+        self.thread = threading.Thread(target=self.run)
+
+    def run(self):
+        while not self.stop_running:
+            sys.stdout.write(f"\r{self.message} {next(self.spinner)}")
+            sys.stdout.flush()
+            time.sleep(0.1)
+        sys.stdout.write('\r' + ' ' * (len(self.message) + 2) + '\r')
+
+    def start(self):
+        self.stop_running = False
+        self.thread.start()
+
+    def stop(self):
+        self.stop_running = True
+        self.thread.join()
+
 def do_scan(filename, n_ip, n_port, my_country):
     cidrs = load_cidr_list(filename)
     ips = []
@@ -204,7 +242,8 @@ def do_scan(filename, n_ip, n_port, my_country):
                 ips.append(ip)
             except Exception:
                 continue
-    print('Finding close IPs...')
+    spinner = Spinner("Finding close IPs...")
+    spinner.start()
     close_ips = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         future_to_ip = {executor.submit(geoip_lookup, ip): ip for ip in ips}
@@ -213,13 +252,18 @@ def do_scan(filename, n_ip, n_port, my_country):
             ip = future_to_ip[future]
             if country == my_country:
                 close_ips.append(ip)
+    spinner.stop()
     print(f'Number of close IPs: {len(close_ips)}')
+    spinner2 = Spinner("Scanning IPs and ports...")
+    spinner2.start()
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        future_to_ip = {executor.submit(scan_ip, ip, n_port): ip for ip in close_ips}
+        future_to_ip = {executor.submit(scan_ip_optimized, ip, n_port): ip for ip in close_ips}
         for future in concurrent.futures.as_completed(future_to_ip):
             res = future.result()
-            results.append(res)
+            if res['best']:
+                results.append(res)
+    spinner2.stop()
     bests = sorted((r for r in results if r['best']), key=lambda x: x['best']['latency'])[:10]
     show_results_boxed(bests)
     if bests:
@@ -240,14 +284,8 @@ def main():
             my_country, my_city, my_ip = get_my_location()
             print_boxed([f"Your Internet Location:", f"Country: {my_country}", f"City: {my_city}", f"IP: {my_ip}"])
             filename = IPV4_FILE if choice == '1' else IPV6_FILE
-            try:
-                n_ip = int(input(f'Number of test IPs per range (default {IPS_PER_RANGE}): ') or IPS_PER_RANGE)
-            except:
-                n_ip = IPS_PER_RANGE
-            try:
-                n_port = int(input(f'Number of random ports per IP (default {PORTS_RANDOM_COUNT}): ') or PORTS_RANDOM_COUNT)
-            except:
-                n_port = PORTS_RANDOM_COUNT
+            n_ip = IPS_PER_RANGE
+            n_port = PORTS_RANDOM_COUNT
             do_scan(filename, n_ip, n_port, my_country)
 
 if __name__ == '__main__':
