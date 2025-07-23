@@ -2,12 +2,12 @@
 Warp Anycast IP & Port Scanner
 =============================
 
-ابزاری حرفه‌ای برای پیدا کردن بهترین آی‌پی و پورت Warp (Cloudflare) با پینگ پایین و نزدیک‌ترین موقعیت جغرافیایی به اینترنت شما.
+A professional tool to find the best IP and port for Warp (Cloudflare) with low ping and closest geographic location to your internet.
 
-اجرا:
+Usage:
     python3 scanner.py
 
-نیازمندی‌ها:
+Requirements:
     pip install requests
 
 """
@@ -22,7 +22,7 @@ import sys
 import base64
 import secrets
 
-# تنظیمات
+# Settings
 IPV4_FILE = 'ips-v4.txt'
 IPV6_FILE = 'ips-v6.txt'
 PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
@@ -32,7 +32,7 @@ IPS_PER_RANGE = 5
 TIMEOUT = 1.5
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
-# --- ابزارهای نمایشی ---
+# --- Display Tools ---
 def print_boxed(text_lines):
     width = max(len(line) for line in text_lines) + 4
     print("\n" + "┌" + "─" * (width - 2) + "┐")
@@ -44,31 +44,30 @@ def main_menu():
     menu_lines = [
         "   Warp Anycast IP Scanner   ",
         "============================",
-        " 1. تست اینترنت",
-        " 2. اسکن آی‌پی‌های Warp نسخه 4 (IPv4)",
-        " 3. اسکن آی‌پی‌های Warp نسخه 6 (IPv6)",
-        " 0. خروج"
+        " 1. Scan Warp IPv4 IPs",
+        " 2. Scan Warp IPv6 IPs",
+        " 0. Exit"
     ]
     print_boxed(menu_lines)
     while True:
-        choice = input('انتخاب شما: ').strip()
-        if choice in ['1', '2', '3', '0']:
+        choice = input('Your choice: ').strip()
+        if choice in ['1', '2', '0']:
             return choice
 
 # --- GeoIP ---
 def get_my_location():
     try:
-        r = requests.get('https://ipinfo.io/json', timeout=3)
+        r = requests.get('http://ip-api.com/json/', timeout=3)
         if r.status_code == 200:
             data = r.json()
-            return data.get('country', ''), data.get('city', ''), data.get('ip', '')
+            return data.get('country', ''), data.get('city', ''), data.get('query', '')
     except Exception:
         pass
     return '', '', ''
 
 def geoip_lookup(ip):
     try:
-        r = requests.get(GEOIP_URL.format(ip=ip), timeout=2)
+        r = requests.get(f'http://ip-api.com/json/{ip}', timeout=2)
         if r.status_code == 200:
             data = r.json()
             return data.get('country', ''), data.get('city', ''), data.get('org', '')
@@ -152,20 +151,20 @@ def scan_ip(ip, n_port):
     }
 
 def show_results_boxed(results):
-    lines = ["--- بهترین آی‌پی‌ها ---"]
+    lines = ["--- Best IPs ---"]
     for b in results:
-        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | پینگ: {b['best']['latency']:.0f} ms")
+        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | Ping: {b['best']['latency']:.0f} ms")
     print_boxed(lines)
 
 def ask_wireguard_config(ip, port):
-    print_boxed([f"آیا کانفیگ وایرگارد با این آی‌پی می‌خواهید؟", f"{ip}:{port}", "1. بله", "2. خیر"])
+    print_boxed([f"Do you want a WireGuard config for this IP?", f"{ip}:{port}", "1. Yes", "2. No"])
     while True:
-        ans = input("انتخاب شما: ").strip()
+        ans = input("Your choice: ").strip()
         if ans in ["1", "2"]:
             return ans == "1"
 
 def generate_private_key():
-    # تولید کلید خصوصی 32 بایتی و تبدیل به base64 (سازگار با WireGuard)
+    # Generate 32-byte private key and convert to base64 (compatible with WireGuard)
     key = secrets.token_bytes(32)
     return base64.b64encode(key).decode()
 
@@ -192,8 +191,8 @@ def show_wireguard_config(ip, port):
         f"wg://{warp_pubkey}@{ip}:{port}?privatekey={private_key}"
         f"&address={address}&dns={dns}&allowedips={allowed_ips.replace(' ', '')}&persistentkeepalive={keepalive}"
     )
-    print_boxed(["کانفیگ متنی WireGuard:"] + config)
-    print_boxed(["لینک سریع wg://:", uri])
+    print_boxed(["WireGuard config:"] + config)
+    print_boxed(["Quick wg:// link:", uri])
 
 def do_scan(filename, n_ip, n_port, my_country):
     cidrs = load_cidr_list(filename)
@@ -205,8 +204,7 @@ def do_scan(filename, n_ip, n_port, my_country):
                 ips.append(ip)
             except Exception:
                 continue
-    # فیلتر آی‌پی‌های نزدیک (بر اساس کشور)
-    print('در حال شناسایی آی‌پی‌های نزدیک...')
+    print('Finding close IPs...')
     close_ips = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         future_to_ip = {executor.submit(geoip_lookup, ip): ip for ip in ips}
@@ -215,8 +213,7 @@ def do_scan(filename, n_ip, n_port, my_country):
             ip = future_to_ip[future]
             if country == my_country:
                 close_ips.append(ip)
-    print(f'تعداد آی‌پی نزدیک به شما: {len(close_ips)}')
-    # تست پینگ و پورت فقط روی آی‌پی‌های نزدیک
+    print(f'Number of close IPs: {len(close_ips)}')
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         future_to_ip = {executor.submit(scan_ip, ip, n_port): ip for ip in close_ips}
@@ -229,28 +226,26 @@ def do_scan(filename, n_ip, n_port, my_country):
         if ask_wireguard_config(bests[0]['ip'], bests[0]['best']['port']):
             show_wireguard_config(bests[0]['ip'], bests[0]['best']['port'])
         else:
-            print_boxed(["کانفیگ ساخته نشد."])
+            print_boxed(["Config not generated."])
     else:
-        print_boxed(["هیچ آی‌پی مناسبی پیدا نشد."])
+        print_boxed(["No suitable IP found."])
 
 def main():
     while True:
         choice = main_menu()
         if choice == '0':
-            print_boxed(["خروج از برنامه. موفق باشید!"])
+            print_boxed(["Exiting. Good luck!"])
             break
-        elif choice == '1':
+        elif choice in ['1', '2']:
             my_country, my_city, my_ip = get_my_location()
-            print_boxed([f"موقعیت اینترنت شما:", f"کشور: {my_country}", f"شهر: {my_city}", f"IP: {my_ip}"])
-        elif choice in ['2', '3']:
-            my_country, my_city, my_ip = get_my_location()
-            filename = IPV4_FILE if choice == '2' else IPV6_FILE
+            print_boxed([f"Your Internet Location:", f"Country: {my_country}", f"City: {my_city}", f"IP: {my_ip}"])
+            filename = IPV4_FILE if choice == '1' else IPV6_FILE
             try:
-                n_ip = int(input(f'تعداد آی‌پی تستی از هر رنج (پیش‌فرض {IPS_PER_RANGE}): ') or IPS_PER_RANGE)
+                n_ip = int(input(f'Number of test IPs per range (default {IPS_PER_RANGE}): ') or IPS_PER_RANGE)
             except:
                 n_ip = IPS_PER_RANGE
             try:
-                n_port = int(input(f'تعداد پورت رندوم برای هر آی‌پی (پیش‌فرض {PORTS_RANDOM_COUNT}): ') or PORTS_RANDOM_COUNT)
+                n_port = int(input(f'Number of random ports per IP (default {PORTS_RANDOM_COUNT}): ') or PORTS_RANDOM_COUNT)
             except:
                 n_port = PORTS_RANDOM_COUNT
             do_scan(filename, n_ip, n_port, my_country)
