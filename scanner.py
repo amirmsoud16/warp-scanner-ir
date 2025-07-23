@@ -28,9 +28,9 @@ import itertools
 IPV4_FILE = 'ips-v4.txt'
 IPV6_FILE = 'ips-v6.txt'
 PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
-PORTS_RANDOM_COUNT = 50
+PORTS_RANDOM_COUNT = 1000
 PORT_RANGE = (1000, 60000)
-IPS_PER_RANGE = 30
+IPS_PER_RANGE = 1000
 TIMEOUT = 1.5
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
@@ -210,6 +210,14 @@ def show_wireguard_config(ip, port):
     print_boxed(["WireGuard config:"] + config)
     print_boxed(["Quick wg:// link:", uri])
 
+def print_progress(current, total, message="Progress"):
+    percent = int((current / total) * 100) if total else 100
+    bar = ('#' * (percent // 2)).ljust(50)
+    sys.stdout.write(f"\r{message}: [{bar}] {percent}% ({current}/{total})")
+    sys.stdout.flush()
+    if current == total:
+        print()
+
 class Spinner:
     def __init__(self, message="Loading..."):
         self.spinner = itertools.cycle(['|', '/', '-', '\\'])
@@ -242,28 +250,28 @@ def do_scan(filename, n_ip, n_port, my_country):
                 ips.append(ip)
             except Exception:
                 continue
-    spinner = Spinner("Finding close IPs...")
-    spinner.start()
+    # Progress bar for finding close IPs
     close_ips = []
+    total = len(ips)
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         future_to_ip = {executor.submit(geoip_lookup, ip): ip for ip in ips}
-        for future in concurrent.futures.as_completed(future_to_ip):
+        for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
             country, city, org = future.result()
             ip = future_to_ip[future]
             if country == my_country:
                 close_ips.append(ip)
-    spinner.stop()
+            print_progress(idx, total, "Finding close IPs")
     print(f'Number of close IPs: {len(close_ips)}')
-    spinner2 = Spinner("Scanning IPs and ports...")
-    spinner2.start()
+    # Progress bar for scanning IPs and ports
     results = []
+    total2 = len(close_ips)
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         future_to_ip = {executor.submit(scan_ip_optimized, ip, n_port): ip for ip in close_ips}
-        for future in concurrent.futures.as_completed(future_to_ip):
+        for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
             res = future.result()
             if res['best']:
                 results.append(res)
-    spinner2.stop()
+            print_progress(idx, total2, "Scanning IPs and ports")
     bests = sorted((r for r in results if r['best']), key=lambda x: x['best']['latency'])[:10]
     show_results_boxed(bests)
     if bests:
@@ -283,6 +291,9 @@ def main():
         elif choice in ['1', '2']:
             my_country, my_city, my_ip = get_my_location()
             print_boxed([f"Your Internet Location:", f"Country: {my_country}", f"City: {my_city}", f"IP: {my_ip}"])
+            start = input("Start scanning? [Y/n]: ").strip().lower()
+            if start not in ["", "y", "yes"]:
+                continue
             filename = IPV4_FILE if choice == '1' else IPV6_FILE
             n_ip = IPS_PER_RANGE
             n_port = PORTS_RANDOM_COUNT
