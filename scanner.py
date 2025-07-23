@@ -197,13 +197,12 @@ def show_wireguard_config(ip, port):
 def do_scan(filename, n_ip, n_port, my_country):
     cidrs = load_cidr_list(filename)
     ips = []
+    # برای هر رنج، همه آی‌پی‌های ممکن را تست کن
     for cidr in cidrs:
-        for _ in range(n_ip):
-            try:
-                ip = random_ip_from_cidr(cidr)
-                ips.append(ip)
-            except Exception:
-                continue
+        net = ipaddress.ip_network(cidr, strict=False)
+        for ip in net.hosts():
+            ips.append(str(ip))
+    print_boxed(["WARNING: Scanning ALL IPs and ALL ports (1-65535). This may take a very long time!"])
     print('Finding close IPs...')
     close_ips = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
@@ -215,8 +214,10 @@ def do_scan(filename, n_ip, n_port, my_country):
                 close_ips.append(ip)
     print(f'Number of close IPs: {len(close_ips)}')
     results = []
+    def all_ports():
+        return [(p, proto) for p in range(1, 65536) for proto in ['tcp', 'udp']]
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        future_to_ip = {executor.submit(scan_ip, ip, n_port): ip for ip in close_ips}
+        future_to_ip = {executor.submit(scan_ip_all_ports, ip): ip for ip in close_ips}
         for future in concurrent.futures.as_completed(future_to_ip):
             res = future.result()
             results.append(res)
@@ -229,6 +230,20 @@ def do_scan(filename, n_ip, n_port, my_country):
             print_boxed(["Config not generated."])
     else:
         print_boxed(["No suitable IP found."])
+
+def scan_ip_all_ports(ip):
+    ports = [(p, proto) for p in range(1, 65536) for proto in ['tcp', 'udp']]
+    results = test_ip_ports(ip, ports)
+    best = min((r for r in results if r['ok']), key=lambda x: x['latency'] if x['latency'] else 9999, default=None)
+    country, city, org = geoip_lookup(ip)
+    return {
+        'ip': ip,
+        'results': results,
+        'best': best,
+        'country': country,
+        'city': city,
+        'org': org
+    }
 
 def main():
     while True:
