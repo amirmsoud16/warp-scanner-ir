@@ -27,9 +27,12 @@ if ! command -v pip3 &> /dev/null; then
     exit 1
 fi
 
-# Install Python dependencies (requests, urllib3)
-echo "[+] Installing required Python packages: requests, urllib3 ..."
-pip3 install --user requests urllib3
+# Install Python dependencies (requests, urllib3, colorama, tqdm, tabulate)
+echo "[+] Installing required Python packages: requests, urllib3, colorama, tqdm, tabulate ..."
+pip3 install --user requests urllib3 colorama tqdm tabulate
+
+# Ensure tabulate is installed system-wide as well (for some environments)
+pip3 install tabulate
 
 # Download files
 for file in "${FILES[@]}"; do
