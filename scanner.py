@@ -114,6 +114,22 @@ class Spinner:
         self.running = False
         self.thread.join()
 
+# --- WireGuard Key Generation ---
+try:
+    from nacl.public import PrivateKey
+    import base64
+except ImportError:
+    import sys
+    import subprocess
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pynacl'])
+    from nacl.public import PrivateKey
+    import base64
+
+def generate_wg_private_key():
+    private_key = PrivateKey.generate()
+    private_key_b64 = base64.b64encode(bytes(private_key)).decode()
+    return private_key_b64
+
 # --- Hiddify Config Generation ---
 def get_hiddify_keys():
     try:
@@ -133,10 +149,9 @@ def get_hiddify_keys():
 
 def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
     public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-    # ساخت settings با حذف مقادیر null و فقط address معتبر
     address_list = ["172.16.0.2/32"]
     if Address_key and Address_key != "null":
-        address_list.append(Address_key)
+        address_list = ["172.16.0.2/32", Address_key]
     settings = {
         "address": address_list,
         "mtu": 1280,
@@ -146,48 +161,17 @@ def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
                 "publicKey": public_key
             }
         ],
-        "reserved": eval(reserved) if reserved else [0, 0, 0]
+        "reserved": eval(reserved) if reserved else [0, 0, 0],
+        "secretKey": private_key if private_key and private_key != "null" else ""
     }
-    if private_key and private_key != "null":
-        settings["secretKey"] = private_key
-
     warp_json = {
         "outbounds": [
             {
                 "protocol": "wireguard",
                 "settings": settings,
                 "tag": "warp"
-            },
-            {"protocol": "dns", "tag": "dns-out"},
-            {"protocol": "freedom", "settings": {}, "tag": "direct"},
-            {"protocol": "blackhole", "settings": {"response": {"type": "http"}}, "tag": "block"}
-        ],
-        "policy": {
-            "levels": {
-                "8": {
-                    "connIdle": 300,
-                    "downlinkOnly": 1,
-                    "handshake": 4,
-                    "uplinkOnly": 1
-                }
-            },
-            "system": {
-                "statsOutboundUplink": True,
-                "statsOutboundDownlink": True
             }
-        },
-        "remarks": "hydra",
-        "routing": {
-            "domainStrategy": "IPIfNonMatch",
-            "rules": [
-                {
-                    "network": "tcp,udp",
-                    "outboundTag": "warp",
-                    "type": "field"
-                }
-            ]
-        },
-        "stats": {}
+        ]
     }
     return json.dumps(warp_json, indent=2, ensure_ascii=False)
 
@@ -282,6 +266,7 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
             return
     clear_screen()
     Address_key, private_key, reserved = get_hiddify_keys()
+    # private_key = generate_wg_private_key() # This line is removed as per the edit hint
     config_text = build_hiddify_config(best_ip, best_port, Address_key, private_key, reserved)
     is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
     if output_name:
