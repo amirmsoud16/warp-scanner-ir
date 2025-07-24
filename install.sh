@@ -76,9 +76,13 @@ if ! command -v wgcf &> /dev/null; then
     echo "[+] wgcf not found. Attempting to install..."
     if [ "$IS_TERMUX" = 1 ]; then
         pkg install -y golang
+        export GOPATH=$HOME/go
+        export PATH=$PATH:$GOPATH/bin
+        mkdir -p $HOME/bin
+        mkdir -p $GOPATH/bin
         go install github.com/ViRb3/wgcf@latest
-        cp ~/go/bin/wgcf ~/bin/wgcf
-        chmod +x ~/bin/wgcf
+        cp $GOPATH/bin/wgcf $HOME/bin/wgcf
+        chmod +x $HOME/bin/wgcf
         echo "[+] wgcf installed in ~/bin."
     else
         ARCH=$(uname -m)
