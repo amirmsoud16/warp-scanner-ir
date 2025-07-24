@@ -32,7 +32,7 @@ PORTS_RANDOM_COUNT = 500
 PORT_RANGE = (1000, 60000)
 IPS_PER_RANGE = 500
 TIMEOUT = 0.1
-MAX_WORKERS = 500
+MAX_WORKERS = 1000
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
 # --- Display Tools ---
@@ -249,7 +249,6 @@ def do_scan(filename, n_ip, n_port, my_country):
         net = ipaddress.ip_network(cidr, strict=False)
         for ip in net.hosts():
             ips.append(str(ip))
-    print_boxed(["WARNING: Scanning ALL IPs and ALL ports (1-65535). This may take a very long time!"])
     # Progress bar for finding close IPs
     close_ips = []
     total = len(ips)
