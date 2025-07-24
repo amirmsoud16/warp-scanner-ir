@@ -17,15 +17,12 @@ def c(text, color):
     return getattr(Fore, color.upper(), Fore.WHITE) + str(text) + Style.RESET_ALL
 
 def banner():
-    art = r"""
- __        __   _                            _  _  _           _           
- \ \      / /__| | ___ ___  _ __ ___   ___  | || || | ___  ___| |_ ___ _ __ 
-  \ \ /\ / / _ \ |/ __/ _ \| '_ ` _ \ / _ \ | || || |/ _ \/ __| __/ _ \ '__|
-   \ V  V /  __/ | (_| (_) | | | | | |  __/ | || || |  __/ (__| ||  __/ |   
-    \_/\_/ \___|_|\___\___/|_| |_| |_|\___| |_||_||_|\___|\___|\__\___|_|   
+    art = """
+
+   H   Y   D   R   A
+
 """
     print(c(art, 'cyan'))
-    print(c("WARP Hiddify Config Generator", 'magenta'))
     print(c("by amiri | github.com/amirmsoud16", 'yellow'))
     print()
     print(c("Welcome! This tool scans IPs and generates a ready-to-use Hiddify/Sing-box config with the best IP.", 'green'))
