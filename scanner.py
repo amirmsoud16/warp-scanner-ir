@@ -25,6 +25,11 @@ import threading
 import itertools
 import os
 
+try:
+    from ping3 import ping as icmp_ping
+except ImportError:
+    icmp_ping = None
+
 # Settings
 IPV4_FILE = 'ips-v4.txt'
 IPV6_FILE = 'ips-v6.txt'
@@ -158,24 +163,42 @@ def test_ip_ports_optimized(ip, main_ports, random_ports):
     best = min(open_ports, key=lambda x: x['latency'] if x['latency'] else 9999)
     return best, results
 
+def real_icmp_ping(ip, timeout=TIMEOUT):
+    if icmp_ping is None:
+        return None
+    try:
+        latency = icmp_ping(ip, timeout=timeout)
+        if latency is not None:
+            return latency * 1000  # ms
+        else:
+            return None
+    except Exception:
+        return None
+
 def scan_ip_optimized(ip, n_random_ports):
     main_ports = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
     random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(1000, 60000), n_random_ports)]
     best, results = test_ip_ports_optimized(ip, main_ports, random_ports)
     country, city, org = geoip_lookup(ip)
+    icmp_latency = real_icmp_ping(ip)
     return {
         'ip': ip,
         'results': results,
         'best': best,
         'country': country,
         'city': city,
-        'org': org
+        'org': org,
+        'icmp_latency': icmp_latency
     }
 
 def show_results_boxed(results):
     lines = ["--- Best IPs ---"]
     for b in results:
-        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | Ping: {b['best']['latency']:.0f} ms")
+        lat = b['best']['latency']
+        lat_str = f"{lat:.0f} ms" if lat and lat > 0 else "N/A"
+        icmp_lat = b.get('icmp_latency')
+        icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
+        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | Port Ping: {lat_str} | ICMP Ping: {icmp_str}")
     print_boxed(lines)
 
 def ask_wireguard_config(ip, port):
@@ -278,6 +301,9 @@ def do_scan(filename, n_ip, n_port, my_country):
             print_boxed(["Config not generated."])
     else:
         print_boxed(["No suitable IP found."])
+
+if icmp_ping is None:
+    print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
 
 def main():
     while True:
