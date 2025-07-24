@@ -37,7 +37,7 @@ PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
 PORTS_RANDOM_COUNT = 500
 PORT_RANGE = (1000, 60000)
 IPS_PER_RANGE = 100
-TIMEOUT = 2
+TIMEOUT = 0.4
 MAX_WORKERS = 1000
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
