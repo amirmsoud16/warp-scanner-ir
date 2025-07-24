@@ -266,12 +266,15 @@ def show_wireguard_config(ip, port):
             break
         os.makedirs("configs", exist_ok=True)
         filename = os.path.join("configs", f"{name}.conf")
+        urlfile = os.path.join("configs", f"{name}.url")
         if os.path.exists(filename):
             print("A config with this name already exists. Choose another name.")
             continue
         with open(filename, "w") as f:
             f.write(config)
-        print(f"Config saved as configs/{name}.conf")
+        with open(urlfile, "w") as f:
+            f.write(f"wg://{config_b64}\nwgcf://{config_b64}\n")
+        print(f"Config saved as configs/{name}.conf and URL as configs/{name}.url")
         saved_name = name
         break
     # پس از ذخیره، منوی مشاهده کانفیک
