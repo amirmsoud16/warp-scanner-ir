@@ -277,7 +277,7 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
             log_name = os.path.splitext(filename)[0] + "_scanlog.csv"
             save_scan_log(scan_rows_sorted, is_termux, log_name)
     if not non_interactive:
-        input(c("Press Enter to exit...", 'magenta'))
+        input(c("Press Enter to return to menu...", 'magenta'))
         clear_screen()
 
 # --- CLI and Entry Point ---
@@ -327,25 +327,26 @@ def main():
             scan_and_generate(ip_file, count=args.count, output_name=args.output, no_color=args.no_color, non_interactive=True)
             break
         else:
-            banner()
-            print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
-            choice = input(c("Enter your choice: ", 'yellow')).strip()
-            if choice == "1":
-                ip_file = "ips-v4.txt"
-            elif choice == "2":
-                ip_file = "ips-v6.txt"
-            elif choice == "0":
-                print(c("Goodbye!", 'cyan'))
-                clear_screen()
-                return
-            else:
-                continue
-            try:
-                count = int(input(c("How many IPs to scan? (default 20): ", 'yellow')).strip() or "20")
-            except Exception:
-                count = 20
-            scan_and_generate(ip_file, count=count)
-            break
+            while True:
+                banner()
+                print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
+                choice = input(c("Enter your choice: ", 'yellow')).strip()
+                if choice == "1":
+                    ip_file = "ips-v4.txt"
+                elif choice == "2":
+                    ip_file = "ips-v6.txt"
+                elif choice == "0":
+                    print(c("Goodbye!", 'cyan'))
+                    clear_screen()
+                    return
+                else:
+                    continue
+                try:
+                    count = int(input(c("How many IPs to scan? (default 20): ", 'yellow')).strip() or "20")
+                except Exception:
+                    count = 20
+                scan_and_generate(ip_file, count=count)
+                # بعد از اتمام، دوباره منو را نمایش بده
 
 if __name__ == '__main__':
     main() 
