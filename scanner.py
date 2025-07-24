@@ -271,11 +271,13 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
         filename = 'warp_hiddify_config.txt'
     save_config(config_text, is_termux, filename)
     print_boxed([f"Config saved as file: {filename}"], 'yellow')
+    clear_screen()
     if not non_interactive:
         save_log = input(c("Do you want to save the scan log as CSV? [y/N]: ", 'yellow')).strip().lower()
         if save_log in ["y", "yes", "1"]:
             log_name = os.path.splitext(filename)[0] + "_scanlog.csv"
             save_scan_log(scan_rows_sorted, is_termux, log_name)
+            clear_screen()
     if not non_interactive:
         input(c("Press Enter to return to menu...", 'magenta'))
         clear_screen()
