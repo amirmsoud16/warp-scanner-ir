@@ -46,6 +46,14 @@ else
     pip3 install ping3
 fi
 
+# Check and install pyperclip if needed
+if python3 -c "import pyperclip" &> /dev/null; then
+    echo "[+] Python pyperclip library is already installed. Skipping."
+else
+    echo "[+] Installing Python pyperclip library..."
+    pip3 install pyperclip
+fi
+
 # Download project files
 echo "[+] Downloading project files from GitHub..."
 for file in "${FILES[@]}"; do
