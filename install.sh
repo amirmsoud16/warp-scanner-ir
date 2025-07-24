@@ -5,6 +5,14 @@ WARPS_DIR="$HOME/WARPS"
 REPO="https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main"
 FILES=(scanner.py ips-v4.txt ips-v6.txt README.md)
 
+# Ensure python3 and pip3 are installed (for both Termux and Linux with apt)
+if command -v apt &> /dev/null; then
+    echo "[+] Detected apt package manager. Installing/updating Python 3 and pip3 ..."
+    apt update -y
+    apt upgrade -y
+    apt install -y python3 python3-pip
+fi
+
 # Remove old WARPS directory if exists
 if [ -d "$WARPS_DIR" ]; then
     echo "[+] Removing old WARPS directory..."
