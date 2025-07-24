@@ -246,9 +246,18 @@ def generate_private_key():
 
 def show_wireguard_config(ip, port):
     import base64
-    public_key = 'm+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE='  # کلید پابلیک رسمی Warp
+    public_key = 'm+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE='
     endpoint = f'{ip}:{port}'
-    config = f'''[Interface]\nPrivateKey = {generate_private_key()}\nAddress = 172.16.0.2/32, 2606:4700:110:8765::2/128\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = {public_key}\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = {endpoint}\nPersistentKeepalive = 25'''
+    config = f'''[Interface]
+PrivateKey = {generate_private_key()}
+Address = 172.16.0.2/32
+DNS = 8.8.8.8,8.8.4.4
+
+[Peer]
+PublicKey = {public_key}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = {endpoint}
+PersistentKeepalive = 25'''
     config_b64 = base64.urlsafe_b64encode(config.encode()).decode()
     wgcf_uri = f'wgcf://{config_b64}'
     print("\033[96m==== WireGuard Config ====" + "\033[0m")
