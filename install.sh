@@ -55,7 +55,10 @@ pip3 install tabulate
 # Download files
 for file in "${FILES[@]}"; do
     echo "Downloading $file ..."
-    curl -sSL "$REPO/$file" -o "$file"
+    if [ -f "$WARPS_DIR/$file" ]; then
+        rm -f "$WARPS_DIR/$file"
+    fi
+    curl -sO "$REPO/$file"
     if [ $? -ne 0 ]; then
         echo "Download of $file failed!"
         exit 1
