@@ -31,7 +31,7 @@ IPV6_FILE = 'ips-v6.txt'
 PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
 PORTS_RANDOM_COUNT = 500
 PORT_RANGE = (1000, 60000)
-IPS_PER_RANGE = 500
+IPS_PER_RANGE = 30
 TIMEOUT = 0.1
 MAX_WORKERS = 1000
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
@@ -249,17 +249,19 @@ class Spinner:
 def do_scan(filename, n_ip, n_port, my_country):
     cidrs = load_cidr_list(filename)
     ips = []
-    # Add all hosts from each CIDR
     for cidr in cidrs:
-        net = ipaddress.ip_network(cidr, strict=False)
-        for ip in net.hosts():
-            ips.append(str(ip))
+        for _ in range(n_ip):
+            try:
+                ip = random_ip_from_cidr(cidr)
+                ips.append(ip)
+            except Exception:
+                continue
     print(f'Total IPs to scan: {len(ips)}')
-    # Progress bar for scanning IPs and ports (no country filter)
+    # Progress bar for scanning IPs and ports
     results = []
     total = len(ips)
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_ip = {executor.submit(scan_ip_all_ports, ip): ip for ip in ips}
+        future_to_ip = {executor.submit(scan_ip_optimized, ip, n_port): ip for ip in ips}
         for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
             res = future.result()
             if res['best']:
@@ -274,20 +276,6 @@ def do_scan(filename, n_ip, n_port, my_country):
             print_boxed(["Config not generated."])
     else:
         print_boxed(["No suitable IP found."])
-
-def scan_ip_all_ports(ip):
-    ports = [(p, proto) for p in range(900, 10001) for proto in ['tcp', 'udp']]
-    results = test_ip_ports_optimized(ip, ports[:3], ports[3:])  # main_ports, random_ports (but here all)
-    best, all_results = results if results else (None, [])
-    country, city, org = geoip_lookup(ip)
-    return {
-        'ip': ip,
-        'results': all_results,
-        'best': best,
-        'country': country,
-        'city': city,
-        'org': org
-    }
 
 def main():
     while True:
