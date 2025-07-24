@@ -254,28 +254,17 @@ def do_scan(filename, n_ip, n_port, my_country):
         net = ipaddress.ip_network(cidr, strict=False)
         for ip in net.hosts():
             ips.append(str(ip))
-    # Progress bar for finding close IPs
-    close_ips = []
+    print(f'Total IPs to scan: {len(ips)}')
+    # Progress bar for scanning IPs and ports (no country filter)
+    results = []
     total = len(ips)
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_ip = {executor.submit(geoip_lookup, ip): ip for ip in ips}
-        for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
-            country, city, org = future.result()
-            ip = future_to_ip[future]
-            if country == my_country:
-                close_ips.append(ip)
-            print_progress(idx, total, "Finding close IPs")
-    print(f'Number of close IPs: {len(close_ips)}')
-    # Progress bar for scanning IPs and ports
-    results = []
-    total2 = len(close_ips)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_ip = {executor.submit(scan_ip_all_ports, ip): ip for ip in close_ips}
+        future_to_ip = {executor.submit(scan_ip_all_ports, ip): ip for ip in ips}
         for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
             res = future.result()
             if res['best']:
                 results.append(res)
-            print_progress(idx, total2, "Scanning IPs and ports")
+            print_progress(idx, total, "Scanning IPs and ports")
     bests = sorted((r for r in results if r['best']), key=lambda x: x['best']['latency'])[:10]
     show_results_boxed(bests)
     if bests:
