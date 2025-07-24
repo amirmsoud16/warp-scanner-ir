@@ -71,6 +71,32 @@ else
     pip3 install --user requests ping3
 fi
 
+# Check and install wgcf if needed
+if ! command -v wgcf &> /dev/null; then
+    echo "[+] wgcf not found. Attempting to install..."
+    if [ "$IS_TERMUX" = 1 ]; then
+        pkg install -y golang
+        go install github.com/ViRb3/wgcf@latest
+        cp ~/go/bin/wgcf ~/bin/wgcf
+        chmod +x ~/bin/wgcf
+        echo "[+] wgcf installed in ~/bin."
+    else
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then ARCH=amd64; fi
+        if [ "$ARCH" = "aarch64" ]; then ARCH=arm64; fi
+        WGCF_URL="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_${ARCH}_linux.tar.gz"
+        mkdir -p "$HOME/bin"
+        cd "$HOME/bin"
+        curl -LO "$WGCF_URL"
+        tar xzf wgcf_${ARCH}_linux.tar.gz
+        chmod +x wgcf
+        rm wgcf_${ARCH}_linux.tar.gz
+        echo "[+] wgcf installed in $HOME/bin."
+        export PATH="$HOME/bin:$PATH"
+        cd "$WARPS_DIR"
+    fi
+fi
+
 # Download files
 for file in "${FILES[@]}"; do
     echo "Downloading $file ..."
