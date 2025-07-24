@@ -258,8 +258,9 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
             print_boxed(["Config generation skipped by user."], 'yellow')
             return
     clear_screen()
-    Address_key, private_key, reserved = get_hiddify_keys()
-    # private_key = generate_wg_private_key() # This line is removed as per the edit hint
+    # Address_key و reserved را از get_hiddify_keys بگیر، اما private_key را با تابع داخلی تولید کن
+    Address_key, _, reserved = get_hiddify_keys()
+    private_key = generate_wg_private_key()
     config_text = build_hiddify_config(best_ip, best_port, Address_key, private_key, reserved)
     is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
     if output_name:
