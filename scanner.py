@@ -246,18 +246,15 @@ def generate_private_key():
 
 def show_wireguard_config(ip, port):
     import base64
-    public_key = '...'  # می‌توانید کلید پابلیک Warp را اینجا قرار دهید
+    public_key = 'm+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE='  # کلید پابلیک رسمی Warp
     endpoint = f'{ip}:{port}'
     config = f'''[Interface]\nPrivateKey = {generate_private_key()}\nAddress = 172.16.0.2/32, 2606:4700:110:8765::2/128\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = {public_key}\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = {endpoint}\nPersistentKeepalive = 25'''
     config_b64 = base64.urlsafe_b64encode(config.encode()).decode()
     wg_uri = f'wg://{config_b64}'
-    v2rayn_uri = f'wgcf://{config_b64}'
     print("\033[96m==== WireGuard Config ====" + "\033[0m")
     print(config)
     print("\n\033[92m==== wg:// URI ====" + "\033[0m")
     print(wg_uri)
-    print("\n\033[93m==== wgcf:// (for v2rayN) ====" + "\033[0m")
-    print(v2rayn_uri)
     # ذخیره کانفیک
     while True:
         name = input("Enter a name to save this config (or leave empty to skip): ").strip()
@@ -272,7 +269,7 @@ def show_wireguard_config(ip, port):
         with open(filename, "w") as f:
             f.write(config)
         with open(urlfile, "w") as f:
-            f.write(f"wg://{config_b64}\nwgcf://{config_b64}\n")
+            f.write(f"wg://{config_b64}\n")
         print(f"Config saved as configs/{name}.conf and URL as configs/{name}.url")
         break
     print("\nPress Enter to return to menu...")
