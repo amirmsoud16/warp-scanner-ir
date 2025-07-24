@@ -1,56 +1,29 @@
 #!/bin/bash
-# Warp Scanner Project Installer (English)
+set -e
+
+WARPS_DIR="$HOME/WARPS"
 REPO="https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main"
 FILES=(scanner.py ips-v4.txt ips-v6.txt README.md)
 
-# Check and install git if needed
-if command -v git &> /dev/null; then
-    echo "[+] git is already installed. Skipping."
-else
-    echo "[+] Installing git..."
-    if command -v apt &> /dev/null; then
-        sudo apt update && sudo apt install -y git
-    elif command -v yum &> /dev/null; then
-        sudo yum install -y git
-    elif command -v dnf &> /dev/null; then
-        sudo dnf install -y git
-    elif command -v pacman &> /dev/null; then
-        sudo pacman -Sy --noconfirm git
-    else
-        echo "Please install git manually."
-    fi
+# Remove old WARPS directory if exists
+if [ -d "$WARPS_DIR" ]; then
+    echo "[+] Removing old WARPS directory..."
+    rm -rf "$WARPS_DIR"
 fi
 
-# Check and install pip if needed
-if command -v pip3 &> /dev/null; then
-    echo "[+] pip3 is already installed. Skipping."
-else
-    echo "[+] Installing pip3..."
-    python3 -m ensurepip --upgrade || true
+# Create WARPS directory
+mkdir -p "$WARPS_DIR"
+cd "$WARPS_DIR"
+
+# Install prerequisites
+if ! command -v python3 &> /dev/null; then
+    echo "Please install python3 first."
+    exit 1
 fi
+pip3 install --upgrade pip
+pip3 install requests ping3
 
-# Check and install requests if needed
-if python3 -c "import requests" &> /dev/null; then
-    echo "[+] Python requests library is already installed. Skipping."
-else
-    echo "[+] Installing Python requests library..."
-    pip3 install --upgrade pip
-    pip3 install requests
-fi
-
-# Check and install ping3 if needed
-if python3 -c "import ping3" &> /dev/null; then
-    echo "[+] Python ping3 library is already installed. Skipping."
-else
-    echo "[+] Installing Python ping3 library..."
-    pip3 install ping3
-fi
-
-# حذف pyperclip و clipboard و speedtest-cli
-# باقی کد نصب و دانلود فایل‌ها ...
-
-# Download project files
-echo "[+] Downloading project files from GitHub..."
+# Download files
 for file in "${FILES[@]}"; do
     echo "Downloading $file ..."
     curl -sSL "$REPO/$file" -o "$file"
@@ -61,6 +34,22 @@ for file in "${FILES[@]}"; do
     echo "$file downloaded."
 done
 
-echo "[+] Installation and download completed successfully!"
-echo "Running the scanner..."
+# Create launcher script in WARPS_DIR
+cat > "$WARPS_DIR/WARPS" <<EOF
+#!/bin/bash
+cd "\$HOME/WARPS"
+python3 scanner.py
+EOF
+chmod +x "$WARPS_DIR/WARPS"
+
+# Optionally add to $HOME/bin for easy access
+if [ ! -d "$HOME/bin" ]; then
+    mkdir -p "$HOME/bin"
+fi
+cp "$WARPS_DIR/WARPS" "$HOME/bin/WARPS"
+export PATH="$HOME/bin:$PATH"
+
+# Final message and run menu
+echo "[+] Installation complete! Run 'WARPS' from anywhere to start the menu."
+cd "$WARPS_DIR"
 python3 scanner.py 
