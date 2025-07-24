@@ -54,6 +54,53 @@ else
     pip3 install pyperclip
 fi
 
+# Clipboard prerequisites for each OS
+OS_TYPE=$(uname | tr '[:upper:]' '[:lower:]')
+if [[ "$OS_TYPE" == *"mingw"* || "$OS_TYPE" == *"msys"* || "$OS_TYPE" == *"cygwin"* ]]; then
+    # Windows (Git Bash, Cygwin, etc.)
+    if python3 -c "import win32clipboard" &> /dev/null; then
+        echo "[+] pywin32 is already installed. Skipping."
+    else
+        echo "[+] Installing pywin32 for Windows clipboard support..."
+        pip3 install pywin32
+    fi
+elif [[ "$OS_TYPE" == *"linux"* ]]; then
+    # Check for Termux
+    if grep -qi termux <<< "$PREFIX"; then
+        if command -v termux-clipboard-set &> /dev/null; then
+            echo "[+] termux-api is already installed. Skipping."
+        else
+            echo "[+] Installing termux-api for Termux clipboard support..."
+            pkg install -y termux-api
+        fi
+    else
+        # Standard Linux
+        if command -v xclip &> /dev/null; then
+            echo "[+] xclip is already installed. Skipping."
+        elif command -v xsel &> /dev/null; then
+            echo "[+] xsel is already installed. Skipping."
+        elif command -v apt &> /dev/null; then
+            echo "[+] Installing xclip for clipboard support..."
+            sudo apt update && sudo apt install -y xclip
+        elif command -v yum &> /dev/null; then
+            echo "[+] Installing xclip for clipboard support..."
+            sudo yum install -y xclip
+        elif command -v dnf &> /dev/null; then
+            echo "[+] Installing xclip for clipboard support..."
+            sudo dnf install -y xclip
+        elif command -v pacman &> /dev/null; then
+            echo "[+] Installing xclip for clipboard support..."
+            sudo pacman -Sy --noconfirm xclip
+        else
+            echo "[!] Please install xclip or xsel manually for clipboard support."
+        fi
+    fi
+elif [[ "$OS_TYPE" == *"darwin"* ]]; then
+    echo "[+] macOS detected. Clipboard support should work by default."
+else
+    echo "[!] Unknown OS. Clipboard support may not work."
+fi
+
 # Download project files
 echo "[+] Downloading project files from GitHub..."
 for file in "${FILES[@]}"; do
