@@ -36,7 +36,7 @@ IPV6_FILE = 'ips-v6.txt'
 PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
 PORTS_RANDOM_COUNT = 500
 PORT_RANGE = (1000, 60000)
-IPS_PER_RANGE = 30
+IPS_PER_RANGE = 100
 TIMEOUT = 2
 MAX_WORKERS = 1000
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
@@ -278,21 +278,23 @@ def do_scan(filename, n_ip, n_port, my_country):
             try:
                 ip = random_ip_from_cidr(cidr)
                 ips.append(ip)
+                if len(ips) >= 100:
+                    break
             except Exception:
                 continue
         print_progress(idx, total_cidrs, "Building IP list")
-    sys.stdout.write("\n")  # فقط یک خط بعد از اتمام
+        if len(ips) >= 100:
+            break
+    sys.stdout.write("\n")
     print(f'Total IPs to scan: {len(ips)}')
-    # Progress bar for scanning IPs and ports
+    # Sequential scan (no threading)
     results = []
     total = len(ips)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_ip = {executor.submit(scan_ip_optimized, ip, n_port): ip for ip in ips}
-        for idx, future in enumerate(concurrent.futures.as_completed(future_to_ip), 1):
-            res = future.result()
-            if res['best']:
-                results.append(res)
-            print_progress(idx, total, "Scanning IPs and ports")
+    for idx, ip in enumerate(ips, 1):
+        res = scan_ip_optimized(ip, n_port)
+        if res['best']:
+            results.append(res)
+        print_progress(idx, total, "Scanning IPs and ports")
     bests = sorted((r for r in results if r['best']), key=lambda x: x['best']['latency'])[:10]
     show_results_boxed(bests)
     if bests:
