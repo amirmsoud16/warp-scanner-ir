@@ -38,6 +38,14 @@ else
     pip3 install requests
 fi
 
+# Check and install ping3 if needed
+if python3 -c "import ping3" &> /dev/null; then
+    echo "[+] Python ping3 library is already installed. Skipping."
+else
+    echo "[+] Installing Python ping3 library..."
+    pip3 install ping3
+fi
+
 # Download project files
 echo "[+] Downloading project files from GitHub..."
 for file in "${FILES[@]}"; do
