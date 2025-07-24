@@ -515,17 +515,16 @@ menu() {
 	clear
 	echo -e "${cyan}hydra${rest}"
 	echo ""
-	echo -e "${blue}╔════════════════════════════════════════╗${rest}"
-	echo -e "${blue}║${yellow}   Warp Endpoint Menu   ${blue}║${rest}"
-	echo -e "${blue}╠════════════════════════════════════════╣${rest}"
-	echo -e "${blue}║   ${yellow}1${blue}. Preferred IPV4    ║${rest}"
-	echo -e "${blue}║   ${yellow}2${blue}. Preferred IPV6    ║${rest}"
-	echo -e "${blue}║   ${yellow}3${blue}. Free Config Wgcf  ║${rest}"
-	echo -e "${blue}║   ${yellow}4${blue}. Install wire-g    ║${rest}"
-	echo -e "${blue}║   ${yellow}5${blue}. License Cloner    ║${rest}"
-	echo -e "${blue}║   ${yellow}0${blue}. Exit              ║${rest}"
-	echo -e "${blue}╚════════════════════════════════════════╝${rest}"
-	echo -en "${cyan}Enter your choice: ${rest}"
+echo -e "${blue}╔════════════════════╗${rest}"
+echo -e "${blue}║${yellow} Warp Endpoint Menu ${blue}║${rest}"
+echo -e "${blue}╠════════════════════╣${rest}"
+echo -e "${blue}║ ${yellow}1${blue}. Preferred IPV4   ║${rest}"
+echo -e "${blue}║ ${yellow}2${blue}. Preferred IPV6   ║${rest}"
+echo -e "${blue}║ ${yellow}3${blue}. Free Config Wgcf ║${rest}"
+echo -e "${blue}║ ${yellow}4${blue}. Install wire-g   ║${rest}"
+echo -e "${blue}║ ${yellow}5${blue}. License Cloner   ║${rest}"
+echo -e "${blue}║ ${yellow}0${blue}. Exit             ║${rest}"
+echo -e "${blue}╚════════════════════╝${rest}"
 	read -r choice
 	case "$choice" in
 	1)
