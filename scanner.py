@@ -218,9 +218,6 @@ def show_results_boxed(results, show_download=False):
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
         line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}"
-        if show_download:
-            speed = b.get('download_speed', 'N/A')
-            line += f" | Download: {speed}"
         color = COLORS[idx % len(COLORS)]
         lines.append(f"{color}{line}{RESET}")
     print_boxed(lines)
@@ -239,13 +236,6 @@ def generate_private_key():
 
 def show_wireguard_config(ip, port):
     import base64
-    import subprocess
-    try:
-        import pyperclip
-    except ImportError:
-        print("[+] Installing pyperclip for clipboard support...")
-        subprocess.check_call(["python3", "-m", "pip", "install", "pyperclip"])
-        import pyperclip
     public_key = '...'  # می‌توانید کلید پابلیک Warp را اینجا قرار دهید
     endpoint = f'{ip}:{port}'
     config = f'''[Interface]
@@ -264,21 +254,6 @@ PersistentKeepalive = 25'''
     print(config)
     print("\n\033[92m==== wg:// URI ====" + "\033[0m")
     print(wg_uri)
-    print("\nWhich one do you want to copy to clipboard?")
-    print("  [1] WireGuard config text")
-    print("  [2] wg:// URI")
-    print("  [0] To skip")
-    choice = input("Enter your choice [1/2/0]: ").strip()
-    if choice == "1":
-        pyperclip.copy(config)
-        print("\033[92m[+] WireGuard config copied to clipboard!\033[0m")
-    elif choice == "2":
-        pyperclip.copy(wg_uri)
-        print("\033[92m[+] wg:// URI copied to clipboard!\033[0m")
-    elif choice == "0":
-        print("No copy performed.")
-    else:
-        print("Invalid choice. No copy performed.")
     print("\nPress Enter to return to menu...")
     input()
 
@@ -326,25 +301,11 @@ def do_scan(filename, my_country):
     sys.stdout.write("\n")
     print_boxed([f"Total available IPs: {len(all_ips)}"])
     n_ip = 100  # تعداد IPهایی که تست می‌شوند
-    # سوال تست دانلود و پینگ
-    while True:
-        print("Which test do you want to run?")
-        print("  [1] ICMP Ping only")
-        print("  [2] ICMP Ping + Download speed")
-        test_mode = input("Enter your choice [1/2]: ").strip()
-        if test_mode in ["1", "ping", "p", ""]:
-            show_download = False
-            break
-        elif test_mode in ["2", "download", "d"]:
-            show_download = True
-            break
-        else:
-            print("Please enter 1 for ping only or 2 for ping + download.")
+    # فقط پینگ واقعی
     selected_ips = random.sample(all_ips, n_ip)
     print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
     total = len(selected_ips)
-    # اسکن یکی‌یکی و گرفتن پینگ واقعی
     for idx, ip in enumerate(selected_ips, 1):
         res = scan_ip_optimized(ip, 0)  # فقط پورت‌های اصلی
         if res['best']:
@@ -355,12 +316,7 @@ def do_scan(filename, my_country):
         (b for b in results if b['best'] and b.get('icmp_latency') and b['icmp_latency'] > 0),
         key=lambda x: x['icmp_latency']
     )
-    # فقط اگر تست دانلود فعال بود، برای 10 آی‌پی برتر تست دانلود انجام بده
-    if show_download:
-        for idx, b in enumerate(results_sorted[:10]):
-            b['download_speed'] = test_download_speed(b['ip'], b['best']['port'])
-    # نمایش خروجی با سرعت دانلود (در صورت فعال بودن)
-    show_results_boxed(results_sorted[:10], show_download=show_download)
+    show_results_boxed(results_sorted[:10], show_download=False)
     if results_sorted:
         best = results_sorted[0]
         while True:
