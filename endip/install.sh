@@ -7,6 +7,7 @@ yellow='\033[0;33m'
 blue='\033[0;34m'
 purple='\033[0;35m'
 cyan='\033[0;36m'
+magenta='\033[0;35m'
 rest='\033[0m'
 
 case "$(uname -m)" in
@@ -518,12 +519,12 @@ menu() {
 	echo -e "${blue}╔══════════════════════╗${rest}"
 	echo -e "${blue}║  Warp Endpoint Menu  ║${rest}"
 	echo -e "${blue}╠══════════════════════╣${rest}"
-	echo -e "${blue}║ 1. Preferred IPV4    ║${rest}"
-	echo -e "${blue}║ 2. Preferred IPV6    ║${rest}"
-	echo -e "${blue}║ 3. Free Config Wgcf  ║${rest}"
-	echo -e "${blue}║ 4. Install wire-g    ║${rest}"
-	echo -e "${blue}║ 5. License Cloner    ║${rest}"
-	echo -e "${blue}║ 0. Exit              ║${rest}"
+	echo -e "${blue}║  ${yellow}1${blue}. Preferred IPV4    ║${rest}"
+	echo -e "${blue}║  ${yellow}2${blue}. Preferred IPV6    ║${rest}"
+	echo -e "${blue}║  ${yellow}3${blue}. Free Config Wgcf  ║${rest}"
+	echo -e "${blue}║  ${yellow}4${blue}. Install wire-g    ║${rest}"
+	echo -e "${blue}║  ${yellow}5${blue}. License Cloner    ║${rest}"
+	echo -e "${blue}║  ${yellow}0${blue}. Exit              ║${rest}"
 	echo -e "${blue}╚══════════════════════╝${rest}"
 	echo -en "${cyan}Enter your choice: ${rest}"
 	read -r choice
