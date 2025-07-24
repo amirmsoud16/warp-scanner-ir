@@ -133,25 +133,29 @@ def get_hiddify_keys():
 
 def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
     public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+    # ساخت settings با حذف مقادیر null و فقط address معتبر
+    address_list = ["172.16.0.2/32"]
+    if Address_key and Address_key != "null":
+        address_list.append(Address_key)
+    settings = {
+        "address": address_list,
+        "mtu": 1280,
+        "peers": [
+            {
+                "endpoint": f"{best_ip}:{port}",
+                "publicKey": public_key
+            }
+        ],
+        "reserved": eval(reserved) if reserved else [0, 0, 0]
+    }
+    if private_key and private_key != "null":
+        settings["secretKey"] = private_key
+
     warp_json = {
         "outbounds": [
             {
                 "protocol": "wireguard",
-                "settings": {
-                    "address": [
-                        "172.16.0.2/32",
-                        Address_key
-                    ],
-                    "mtu": 1280,
-                    "peers": [
-                        {
-                            "endpoint": f"{best_ip}:{port}",
-                            "publicKey": public_key
-                        }
-                    ],
-                    "reserved": eval(reserved) if reserved else [0,0,0],
-                    "secretKey": private_key
-                },
+                "settings": settings,
                 "tag": "warp"
             },
             {"protocol": "dns", "tag": "dns-out"},
