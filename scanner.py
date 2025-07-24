@@ -312,7 +312,10 @@ def do_scan(filename, my_country):
     print_boxed([f"Total available IPs: {total_ips}"])
     n_ip = 100
     while True:
-        port_mode = input("Which ports to test? [1] Main ports (2408/UDP, 443/TCP/UDP)  [2] 100 random ports (900-10000): ").strip()
+        print("Which ports to test?")
+        print("  [1] Main ports (2408/UDP, 443/TCP/UDP)")
+        print("  [2] 100 random ports (900-10000)")
+        port_mode = input("Enter your choice [1/2]: ").strip()
         if port_mode in ["1", "main", "m", ""]:
             use_random_ports = False
             break
