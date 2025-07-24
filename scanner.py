@@ -280,7 +280,12 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
     Address_key, private_key, reserved = get_hiddify_keys()
     config_text = build_hiddify_config(best_ip, best_port, Address_key, private_key, reserved)
     is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-    filename = output_name or (choose_filename('warp_hiddify_config.txt') if not non_interactive else 'warp_hiddify_config.txt')
+    if output_name:
+        filename = output_name
+    elif not non_interactive:
+        filename = choose_filename('warp_hiddify_config.txt')
+    else:
+        filename = 'warp_hiddify_config.txt'
     save_config(config_text, is_termux, filename)
     print_boxed([f"Config saved as file: {filename}"], 'yellow')
     if not non_interactive:
