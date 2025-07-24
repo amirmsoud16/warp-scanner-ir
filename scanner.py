@@ -193,16 +193,29 @@ def scan_ip_optimized(ip, n_random_ports):
 
 def show_results_boxed(results):
     clear_screen()
-    GREEN = '\033[92m'
+    COLORS = ['\033[92m', '\033[93m', '\033[94m', '\033[91m', '\033[95m', '\033[96m', '\033[90m']
     RESET = '\033[0m'
-    lines = ["--- Best IPs ---"]
+    # ابتدا سرعت دانلود را برای هر آی‌پی تست کن
     for b in results:
+        b['download_speed'] = test_download_speed(b['ip'], b['best']['port']) if b['best'] else 'N/A'
+        try:
+            b['download_speed_val'] = float(b['download_speed'].split()[0]) if b['download_speed'] != 'N/A' else 0
+        except Exception:
+            b['download_speed_val'] = 0
+    # مرتب‌سازی بر اساس کمترین ICMP Ping و سپس بیشترین سرعت دانلود
+    results_sorted = sorted(
+        (b for b in results if b['best'] and b.get('icmp_latency')),
+        key=lambda x: (x['icmp_latency'], -x['download_speed_val'])
+    )
+    lines = ["--- Best IPs (sorted by ICMP Ping & Download Speed) ---"]
+    for idx, b in enumerate(results_sorted[:10]):
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
-        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}")
-    print(GREEN, end='')
+        speed = b['download_speed']
+        line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str} | Download: {speed}"
+        color = COLORS[idx % len(COLORS)]
+        lines.append(f"{color}{line}{RESET}")
     print_boxed(lines)
-    print(RESET, end='')
 
 def ask_wireguard_config(ip, port):
     print_boxed([f"Do you want a WireGuard config for this IP?", f"{ip}:{port}", "1. Yes", "2. No"])
@@ -240,13 +253,21 @@ def show_wireguard_config(ip, port):
         f"&address={address}&dns={dns}&allowedips={allowed_ips.replace(' ', '')}&persistentkeepalive={keepalive}"
     )
     clear_screen()
-    # رنگ سبز برای باکس کانفیک (ANSI)
     GREEN = '\033[92m'
+    CYAN = '\033[96m'
+    YELLOW = '\033[93m'
     RESET = '\033[0m'
-    print(GREEN, end='')
-    print_boxed(["WireGuard config:"] + config)
-    print_boxed(["Quick wg:// link:", uri])
-    print(RESET, end='')
+    # ساخت باکس زیبا
+    box_width = max(len(line) for line in config + [uri]) + 8
+    print(f"{CYAN}{'┌' + '─' * (box_width - 2) + '┐'}{RESET}")
+    print(f"{GREEN}│{' WireGuard Config '.center(box_width - 2)}│{RESET}")
+    print(f"{CYAN}{'├' + '─' * (box_width - 2) + '┤'}{RESET}")
+    for line in config:
+        print(f"{GREEN}│ {line.ljust(box_width - 4)} │{RESET}")
+    print(f"{CYAN}{'├' + '─' * (box_width - 2) + '┤'}{RESET}")
+    print(f"{YELLOW}│{' wg:// link: '.ljust(box_width - 2)}│{RESET}")
+    print(f"{YELLOW}│ {uri.ljust(box_width - 4)} │{RESET}")
+    print(f"{CYAN}{'└' + '─' * (box_width - 2) + '┘'}{RESET}")
     input("Press Enter to exit...")
     clear_screen()
 
@@ -323,9 +344,8 @@ def do_scan(filename, my_country):
         print_boxed(["No suitable IP found."])
 
 def scan_ip_random_ports(ip, n_random_ports):
-    main_ports = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
     random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(900, 10001), n_random_ports)]
-    best, results = test_ip_ports_optimized(ip, main_ports, random_ports)
+    best, results = test_ip_ports_optimized(ip, [], random_ports)
     country, city, org = geoip_lookup(ip)
     icmp_latency = real_icmp_ping(ip)
     return {
@@ -337,6 +357,45 @@ def scan_ip_random_ports(ip, n_random_ports):
         'org': org,
         'icmp_latency': icmp_latency
     }
+
+def test_download_speed(ip, port):
+    try:
+        url = f'http://{ip}:{port}/speedtest/random4000x4000.jpg'
+        start = time.time()
+        r = requests.get(url, timeout=3, stream=True)
+        total = 0
+        for chunk in r.iter_content(1024):
+            total += len(chunk)
+            if total > 1024*1024:  # فقط 1MB دانلود کن
+                break
+        elapsed = time.time() - start
+        speed_mbps = (total * 8) / (elapsed * 1_000_000)
+        return f'{speed_mbps:.2f} Mbps'
+    except Exception:
+        return 'N/A'
+
+def show_results_boxed(results):
+    clear_screen()
+    GREEN = '\033[92m'
+    RESET = '\033[0m'
+    # مرتب‌سازی بر اساس کمترین ICMP Ping
+    results_sorted = sorted(
+        (b for b in results if b['best'] and b.get('icmp_latency')),
+        key=lambda x: x['icmp_latency']
+    )
+    lines = ["--- Best IPs (sorted by ICMP Ping) ---"]
+    for b in results_sorted[:10]:
+        icmp_lat = b.get('icmp_latency')
+        icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
+        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}")
+    print(GREEN, end='')
+    print_boxed(lines)
+    print(RESET, end='')
+    # تست سرعت فقط برای بهترین آی‌پی
+    if results_sorted:
+        best = results_sorted[0]
+        speed = test_download_speed(best['ip'], best['best']['port'])
+        print_boxed([f"Download speed for {best['ip']}:{best['best']['port']} : {speed}"])
 
 if icmp_ping is None:
     print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
