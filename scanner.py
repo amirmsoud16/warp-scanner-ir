@@ -259,7 +259,6 @@ def show_wireguard_config(ip, port):
     print("\n\033[93m==== wgcf:// (for v2rayN) ====" + "\033[0m")
     print(v2rayn_uri)
     # ذخیره کانفیک
-    saved_name = None
     while True:
         name = input("Enter a name to save this config (or leave empty to skip): ").strip()
         if name == "":
@@ -275,19 +274,7 @@ def show_wireguard_config(ip, port):
         with open(urlfile, "w") as f:
             f.write(f"wg://{config_b64}\nwgcf://{config_b64}\n")
         print(f"Config saved as configs/{name}.conf and URL as configs/{name}.url")
-        saved_name = name
         break
-    # پس از ذخیره، منوی مشاهده کانفیک
-    if saved_name:
-        while True:
-            see = input("Do you want to view a config? [y/n]: ").strip().lower()
-            if see in ["y", "yes"]:
-                show_saved_configs(view_only=True)
-                break
-            elif see in ["n", "no", ""]:
-                break
-            else:
-                print("Please enter y or n.")
     print("\nPress Enter to return to menu...")
     input()
 
@@ -308,13 +295,21 @@ def show_saved_configs(view_only=False):
         return
     for idx, fname in enumerate(files, 1):
         print(f"{idx}- {os.path.splitext(fname)[0]}")
+    def show_both(idx):
+        conf_file = os.path.join(configs_dir, files[idx-1])
+        url_file = conf_file[:-5] + ".url"
+        print("\n\033[96m==== Config Content ====" + "\033[0m")
+        with open(conf_file, "r") as f:
+            print(f.read())
+        if os.path.exists(url_file):
+            print("\n\033[92m==== URLs ====" + "\033[0m")
+            with open(url_file, "r") as f:
+                print(f.read())
     if view_only:
         try:
             num = int(input("Enter config number to view: ").strip())
             if 1 <= num <= len(files):
-                with open(os.path.join(configs_dir, files[num-1]), "r") as f:
-                    print("\n\033[96m==== Config Content ====" + "\033[0m")
-                    print(f.read())
+                show_both(num)
             else:
                 print("Invalid number.")
         except Exception:
@@ -330,9 +325,7 @@ def show_saved_configs(view_only=False):
             try:
                 num = int(input("Enter config number to view: ").strip())
                 if 1 <= num <= len(files):
-                    with open(os.path.join(configs_dir, files[num-1]), "r") as f:
-                        print("\n\033[96m==== Config Content ====" + "\033[0m")
-                        print(f.read())
+                    show_both(num)
                 else:
                     print("Invalid number.")
             except Exception:
@@ -344,6 +337,9 @@ def show_saved_configs(view_only=False):
                 num = int(input("Enter config number to delete: ").strip())
                 if 1 <= num <= len(files):
                     os.remove(os.path.join(configs_dir, files[num-1]))
+                    url_file = os.path.join(configs_dir, files[num-1][:-5] + ".url")
+                    if os.path.exists(url_file):
+                        os.remove(url_file)
                     print("Config deleted.")
                     files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
                     for idx, fname in enumerate(files, 1):
