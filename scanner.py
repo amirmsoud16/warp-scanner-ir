@@ -57,64 +57,6 @@ def print_boxed(text_lines):
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def auto_wgcf_register_and_get_config():
-    import subprocess, shutil, sys, os
-    # بررسی نصب بودن wgcf
-    if not shutil.which("wgcf"):
-        print_boxed([
-            "wgcf not found!",
-            "Please install wgcf manually:",
-            "Linux: wget https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_$(uname -m)_linux.tar.gz && tar xzf wgcf_* && mv wgcf ~/bin/",
-            "Termux: pkg install golang && go install github.com/ViRb3/wgcf@latest && cp ~/go/bin/wgcf ~/bin/",
-            "Then run this menu again."
-        ])
-        input("Press Enter to return to menu...")
-        return
-    # ثبت‌نام و ساخت کانفیک
-    try:
-        subprocess.run(["wgcf", "register"], check=True)
-        subprocess.run(["wgcf", "generate"], check=True)
-    except Exception as e:
-        print_boxed([f"wgcf error: {e}"])
-        input("Press Enter to return to menu...")
-        return
-    conf_path = os.path.join(os.getcwd(), "wgcf-profile.conf")
-    if os.path.exists(conf_path):
-        name = input("Enter a name to save this config (or leave empty to skip): ").strip()
-        if not name:
-            print("Skipped saving config.")
-            return
-        # همیشه در configs ذخیره کن
-        os.makedirs("configs", exist_ok=True)
-        filename = os.path.join("configs", f"{name}.conf")
-        if os.path.exists(filename):
-            print("A config with this name already exists. Choose another name.")
-            return
-        shutil.copy(conf_path, filename)
-        print(f"Config saved as {filename}")
-        # اگر ترماکس بود، اجازه دسترسی storage بگیرد و یک کپی هم در Downloads بگذارد
-        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-        if is_termux:
-            try:
-                print("[+] Requesting storage permission for Termux (if needed)...")
-                subprocess.run(["termux-setup-storage"], check=False)
-            except Exception:
-                pass
-            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
-            if not os.path.isdir(save_dir):
-                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
-            try:
-                os.makedirs(save_dir, exist_ok=True)
-                download_file = os.path.join(save_dir, f"{name}.conf")
-                shutil.copy(conf_path, download_file)
-                print(f"Config also saved as {download_file}")
-            except Exception as e:
-                print(f"Could not save to Downloads: {e}")
-        print_boxed(["[+] Warp config generated and saved!"])
-    else:
-        print_boxed(["wgcf-profile.conf not found after generation!"])
-    input("Press Enter to return to menu...")
-
 # افزودن گزینه به منو
 
 def main_menu():
@@ -124,8 +66,6 @@ def main_menu():
             " WARP SCANNER MENU ",
             "1. Scan IPv4",
             "2. Scan IPv6",
-            "3. Show saved configs",
-            "4. Generate real Warp config (auto-register with wgcf)",
             "0. Exit"
         ])
         choice = input("Enter your choice: ").strip()
@@ -133,10 +73,6 @@ def main_menu():
             do_scan(IPV4_FILE)
         elif choice == "2":
             do_scan(IPV6_FILE)
-        elif choice == "3":
-            show_saved_configs()
-        elif choice == "4":
-            auto_wgcf_register_and_get_config()
         elif choice == "0":
             print("Goodbye!")
             break
@@ -312,161 +248,7 @@ def generate_private_key():
     key = secrets.token_bytes(32)
     return base64.b64encode(key).decode()
 
-def show_wireguard_config(ip, port):
-    import base64
-    import sys
-    import subprocess
-    public_key = 'm+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE='
-    endpoint = f'{ip}:{port}'
-    config = f'''[Interface]
-PrivateKey = {generate_private_key()}
-Address = 172.16.0.2/32
-DNS = 8.8.8.8,8.8.4.4
-
-[Peer]
-PublicKey = {public_key}
-AllowedIPs = 0.0.0.0/0
-Endpoint = {endpoint}
-PersistentKeepalive = 25'''
-    print("\033[96m==== WireGuard Config ====" + "\033[0m")
-    print(config)
-    while True:
-        name = input("Enter a name to save this config (or leave empty to skip): ").strip()
-        if name == "":
-            break
-        # همیشه در configs ذخیره کن
-        os.makedirs("configs", exist_ok=True)
-        filename = os.path.join("configs", f"{name}.conf")
-        if os.path.exists(filename):
-            print("A config with this name already exists. Choose another name.")
-            continue
-        with open(filename, "w") as f:
-            f.write(config)
-        print(f"Config saved as {filename}")
-        # اگر ترماکس بود، اجازه دسترسی storage بگیرد و یک کپی هم در Downloads بگذارد
-        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-        if is_termux:
-            try:
-                print("[+] Requesting storage permission for Termux (if needed)...")
-                subprocess.run(["termux-setup-storage"], check=False)
-            except Exception:
-                pass
-            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
-            if not os.path.isdir(save_dir):
-                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
-            try:
-                os.makedirs(save_dir, exist_ok=True)
-                download_file = os.path.join(save_dir, f"{name}.conf")
-                with open(download_file, "w") as f:
-                    f.write(config)
-                print(f"Config also saved as {download_file}")
-            except Exception as e:
-                print(f"Could not save to Downloads: {e}")
-        break
-    print("\nPress Enter to return to menu...")
-    input()
-
-def show_saved_configs(view_only=False):
-    clear_screen()
-    print_boxed(["Saved WireGuard Configs"])
-    configs_dir = "configs"
-    if not os.path.isdir(configs_dir):
-        print("No configs found.")
-        print("\nPress Enter to return to menu...")
-        input()
-        return
-    files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
-    if not files:
-        print("No configs found.")
-        print("\nPress Enter to return to menu...")
-        input()
-        return
-    for idx, fname in enumerate(files, 1):
-        print(f"{idx}- {os.path.splitext(fname)[0]}")
-    def show_both(idx):
-        conf_file = os.path.join(configs_dir, files[idx-1])
-        print("\n\033[96m==== Config Content ====" + "\033[0m")
-        with open(conf_file, "r") as f:
-            print(f.read())
-    if view_only:
-        try:
-            num = int(input("Enter config number to view: ").strip())
-            if 1 <= num <= len(files):
-                show_both(num)
-            else:
-                print("Invalid number.")
-        except Exception:
-            print("Invalid input.")
-        print("\nPress Enter to return to menu...")
-        input()
-        return
-    # منوی کوچک برای مشاهده/حذف/خروج/ذخیره دوباره
-    while True:
-        print("\n[1] View config\n[2] Delete config\n[3] Save again to Downloads/WARPS\n[0] Exit")
-        action = input("Enter your choice: ").strip()
-        if action == "1":
-            try:
-                num = int(input("Enter config number to view: ").strip())
-                if 1 <= num <= len(files):
-                    show_both(num)
-                else:
-                    print("Invalid number.")
-            except Exception:
-                print("Invalid input.")
-            print("\nPress Enter to return to menu...")
-            input()
-        elif action == "2":
-            try:
-                num = int(input("Enter config number to delete: ").strip())
-                if 1 <= num <= len(files):
-                    os.remove(os.path.join(configs_dir, files[num-1]))
-                    print("Config deleted.")
-                    files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
-                    for idx, fname in enumerate(files, 1):
-                        print(f"{idx}- {os.path.splitext(fname)[0]}")
-                else:
-                    print("Invalid number.")
-            except Exception:
-                print("Invalid input.")
-            print("\nPress Enter to return to menu...")
-            input()
-        elif action == "3":
-            try:
-                num = int(input("Enter config number to save again: ").strip())
-                if 1 <= num <= len(files):
-                    import sys
-                    conf_file = os.path.join(configs_dir, files[num-1])
-                    with open(conf_file, "r") as f:
-                        conf_content = f.read()
-                    new_name = input("Enter new name for the config file: ").strip()
-                    if not new_name:
-                        print("No name entered.")
-                        continue
-                    is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-                    if is_termux:
-                        save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
-                        if not os.path.isdir(save_dir):
-                            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
-                    else:
-                        save_dir = os.path.dirname(os.path.abspath(__file__))
-                    os.makedirs(save_dir, exist_ok=True)
-                    new_file = os.path.join(save_dir, f"{new_name}.conf")
-                    if os.path.exists(new_file):
-                        print("A config with this name already exists in the target folder.")
-                        continue
-                    with open(new_file, "w") as f:
-                        f.write(conf_content)
-                    print(f"Config saved as {new_file}")
-                else:
-                    print("Invalid number.")
-            except Exception:
-                print("Invalid input.")
-            print("\nPress Enter to return to menu...")
-            input()
-        elif action == "0":
-            break
-        else:
-            print("Invalid choice.")
+# Remove show_wireguard_config, show_saved_configs, get_wgcf_private_key_and_config, and all config file handling logic
 
 def print_progress(current, total, message="Progress"):
     percent = int((current / total) * 100) if total else 100
@@ -498,74 +280,6 @@ class Spinner:
         self.stop_running = True
         self.thread.join()
 
-def get_wgcf_private_key_and_config(ip, port, name):
-    import subprocess, shutil, sys, os
-    # بررسی نصب بودن wgcf
-    if not shutil.which("wgcf"):
-        print_boxed([
-            "wgcf not found!",
-            "Please install wgcf manually:",
-            "Linux: wget https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_$(uname -m)_linux.tar.gz && tar xzf wgcf_* && mv wgcf ~/bin/",
-            "Termux: pkg install golang && go install github.com/ViRb3/wgcf@latest && cp ~/go/bin/wgcf ~/bin/",
-            "Then run this menu again."
-        ])
-        input("Press Enter to return to menu...")
-        return None
-    # ثبت‌نام و ساخت کانفیک
-    try:
-        subprocess.run(["wgcf", "register"], check=True)
-        subprocess.run(["wgcf", "generate"], check=True)
-    except Exception as e:
-        print_boxed([f"wgcf error: {e}"])
-        input("Press Enter to return to menu...")
-        return None
-    conf_path = os.path.join(os.getcwd(), "wgcf-profile.conf")
-    if os.path.exists(conf_path):
-        # کانفیک را بخوان و فقط Endpoint را جایگزین کن
-        with open(conf_path, "r") as f:
-            lines = f.readlines()
-        new_lines = []
-        for line in lines:
-            if line.strip().startswith("Endpoint ="):
-                new_lines.append(f"Endpoint = {ip}:{port}\n")
-            else:
-                new_lines.append(line)
-        config = ''.join(new_lines)
-        # ذخیره در configs و (در صورت ترماکس) Downloads
-        os.makedirs("configs", exist_ok=True)
-        filename = os.path.join("configs", f"{name}.conf")
-        with open(filename, "w") as f:
-            f.write(config)
-        print(f"Config saved as {filename}")
-        # اگر ترماکس بود، اجازه دسترسی storage بگیرد و یک کپی هم در Downloads بگذارد
-        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-        if is_termux:
-            try:
-                print("[+] Requesting storage permission for Termux (if needed)...")
-                subprocess.run(["termux-setup-storage"], check=False)
-            except Exception:
-                pass
-            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
-            if not os.path.isdir(save_dir):
-                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
-            try:
-                os.makedirs(save_dir, exist_ok=True)
-                download_file = os.path.join(save_dir, f"{name}.conf")
-                with open(download_file, "w") as f:
-                    f.write(config)
-                print(f"Config also saved as {download_file}")
-            except Exception as e:
-                print(f"Could not save to Downloads: {e}")
-        print_boxed(["[+] Warp config generated and saved!"])
-        print("\n==== WireGuard Config ====" + "\033[0m")
-        print(config)
-        input("\nPress Enter to return to menu...")
-        return config
-    else:
-        print_boxed(["wgcf-profile.conf not found after generation!"])
-        input("Press Enter to return to menu...")
-        return None
-
 # ویرایش do_scan:
 def do_scan(filename):
     cidrs = load_cidr_list(filename)
@@ -596,17 +310,80 @@ def do_scan(filename):
     show_results_boxed(results_sorted[:10], show_download=False)
     if results_sorted:
         best = results_sorted[0]
-        while True:
-            ans = input(f"Do you want WireGuard config with {best['ip']}:{best['best']['port']} (Best Ping)? [Y/n]: ").strip().lower()
-            if ans in ["", "y", "yes"]:
-                name = input("Enter a name to save this config (or leave empty to skip): ").strip()
-                if name:
-                    get_wgcf_private_key_and_config(best['ip'], best['best']['port'], name)
-                break
-            elif ans in ["n", "no"]:
-                break
-            else:
-                print("Please enter Y or N.")
+        def get_hiddify_keys():
+            import urllib.request, requests, re
+            try:
+                output = urllib.request.urlopen("https://api.zeroteam.top/warp?format=sing-box", timeout=30).read().decode('utf-8')
+            except Exception:
+                output = requests.get("https://api.zeroteam.top/warp?format=sing-box", timeout=30).text
+            Address_pattern = r'"2606:4700:[0-9a-f:]+/128"'
+            private_key_pattern = r'"private_key":"[0-9a-zA-Z/+]+="'
+            reserved_pattern = r'"reserved":\[[0-9]+(,[0-9]+){2}\]'
+            Address_search = re.search(Address_pattern, output)
+            private_key_search = re.search(private_key_pattern, output)
+            reserved_search = re.search(reserved_pattern, output)
+            Address_key = Address_search.group(0).replace('"', '') if Address_search else None
+            private_key = private_key_search.group(0).split(':')[1].replace('"', '') if private_key_search else None
+            reserved = reserved_search.group(0).replace('"reserved":', '').replace('"', '') if reserved_search else None
+            return Address_key, private_key, reserved
+        Address_key, private_key, reserved = get_hiddify_keys()
+        public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+        warp_json = {
+            "outbounds": [
+                {
+                    "protocol": "wireguard",
+                    "settings": {
+                        "address": [
+                            "172.16.0.2/32",
+                            Address_key
+                        ],
+                        "mtu": 1280,
+                        "peers": [
+                            {
+                                "endpoint": f"{best['ip']}:{best['best']['port']}",
+                                "publicKey": public_key
+                            }
+                        ],
+                        "reserved": eval(reserved) if reserved else [0,0,0],
+                        "secretKey": private_key
+                    },
+                    "tag": "warp"
+                },
+                {"protocol": "dns", "tag": "dns-out"},
+                {"protocol": "freedom", "settings": {}, "tag": "direct"},
+                {"protocol": "blackhole", "settings": {"response": {"type": "http"}}, "tag": "block"}
+            ],
+            "policy": {
+                "levels": {
+                    "8": {
+                        "connIdle": 300,
+                        "downlinkOnly": 1,
+                        "handshake": 4,
+                        "uplinkOnly": 1
+                    }
+                },
+                "system": {
+                    "statsOutboundUplink": True,
+                    "statsOutboundDownlink": True
+                }
+            },
+            "remarks": "hydra",
+            "routing": {
+                "domainStrategy": "IPIfNonMatch",
+                "rules": [
+                    {
+                        "network": "tcp,udp",
+                        "outboundTag": "warp",
+                        "type": "field"
+                    }
+                ]
+            },
+            "stats": {}
+        }
+        import json
+        print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="])
+        print(json.dumps(warp_json, indent=2, ensure_ascii=False))
+        input("Press Enter to return to menu...")
     else:
         print_boxed(["No suitable IP found."])
 
