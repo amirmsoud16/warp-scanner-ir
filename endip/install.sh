@@ -7,7 +7,6 @@ yellow='\033[0;33m'
 blue='\033[0;34m'
 purple='\033[0;35m'
 cyan='\033[0;36m'
-magenta='\033[0;35m'
 rest='\033[0m'
 
 case "$(uname -m)" in
@@ -33,7 +32,7 @@ cfwarpIP() {
 	if [[ ! -f "$PREFIX/bin/warpendpoint" ]]; then
 		echo "Downloading warpendpoint program"
 		if [[ -n $cpu ]]; then
-			curl -L -o warpendpoint -# --retry 2 https://raw.githubusercontent.com/Ptechgithub/warp/main/endip/$cpu
+			curl -L -o warpendpoint -# --retry 2 https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/endip/$cpu
 			cp warpendpoint $PREFIX/bin
 			chmod +x $PREFIX/bin/warpendpoint
 		fi
@@ -267,28 +266,25 @@ endipresult() {
 	echo -e "${green}Results Saved in result.csv${rest}"
 	echo ""
 	if [ "$Endip_v4" ]; then
-		echo -e "${blue}************************************${rest}"
-		echo -e "${blue}*           ${yellow}Best IPv4:Port${blue}         *${rest}"
-		echo -e "${blue}*                                  *${rest}"
-		echo -e "${blue}*          ${cyan}$Endip_v4${blue}     *${rest}"
-		echo -e "${blue}*           ${cyan}Delay: ${green}[$delay]        ${blue}*${rest}"
-		echo -e "${blue}************************************${rest}"
+		echo -e "${purple}************************************${rest}"
+		echo -e "${purple}*           ${yellow}Best IPv4:Port${purple}         *${rest}"
+		echo -e "${purple}*                                  *${rest}"
+		echo -e "${purple}*          ${cyan}$Endip_v4${purple}     *${rest}"
+		echo -e "${purple}*           ${cyan}Delay: ${green}[$delay]        ${purple}*${rest}"
+		echo -e "${purple}************************************${rest}"
 	elif [ "$Endip_v6" ]; then
-		echo -e "${blue}********************************************${rest}"
-		echo -e "${blue}*          ${yellow}Best [IPv6]:Port                ${blue}*${rest}"
-		echo -e "${blue}*                                          *${rest}"
-		echo -e "${blue}* ${cyan}$Endip_v6${blue} *${rest}"
-		echo -e "${blue}*           ${cyan}Delay: ${green}[$delay]               ${blue}*${rest}"
-		echo -e "${blue}********************************************${rest}"
+		echo -e "${purple}********************************************${rest}"
+		echo -e "${purple}*          ${yellow}Best [IPv6]:Port                ${purple}*${rest}"
+		echo -e "${purple}*                                          *${rest}"
+		echo -e "${purple}* ${cyan}$Endip_v6${purple} *${rest}"
+		echo -e "${purple}*           ${cyan}Delay: ${green}[$delay]               ${purple}*${rest}"
+		echo -e "${purple}********************************************${rest}"
 	else
 		echo -e "${red} No valid IP addresses found.${rest}"
 	fi
-	echo -en "${yellow}Press Enter to return to the menu...${rest}"
-	read -r
 	rm warpendpoint >/dev/null 2>&1
 	rm -rf ip.txt
-	# exit removed to return to menu
-	return
+	exit
 }
 
 # Run wire-g and get Wireguard Config
@@ -514,52 +510,57 @@ cloner() {
 #Menu
 menu() {
 	clear
-	echo -e "${cyan}hydra${rest}"
+	echo -e "${yellow}hydra${rest}"
 	echo ""
-	echo -e "${blue}╔══════════════════════╗${rest}"
-	echo -e "${blue}║  Warp Endpoint Menu  ║${rest}"
-	echo -e "${blue}╠══════════════════════╣${rest}"
-	echo -e "${blue}║  ${yellow}1${blue}. Preferred IPV4    ║${rest}"
-	echo -e "${blue}║  ${yellow}2${blue}. Preferred IPV6    ║${rest}"
-	echo -e "${blue}║  ${yellow}3${blue}. Free Config Wgcf  ║${rest}"
-	echo -e "${blue}║  ${yellow}4${blue}. Install wire-g    ║${rest}"
-	echo -e "${blue}║  ${yellow}5${blue}. License Cloner    ║${rest}"
-	echo -e "${blue}║  ${yellow}0${blue}. Exit              ║${rest}"
-	echo -e "${blue}╚══════════════════════╝${rest}"
+	echo -e "${green}╔══════════════════════╗${rest}"
+	echo -e "${green}║  Warp Endpoint Menu  ║${rest}"
+	echo -e "${green}╠══════════════════════╣${rest}"
+	echo -e "${green}║  ${yellow}1${green}. Preferred IPV4    ║${rest}"
+	echo -e "${green}║  ${yellow}2${green}. Preferred IPV6    ║${rest}"
+	echo -e "${green}║  ${yellow}3${green}. Free Config Wgcf  ║${rest}"
+	echo -e "${green}║  ${yellow}4${green}. Install wire-g    ║${rest}"
+	echo -e "${green}║  ${yellow}5${green}. License Cloner    ║${rest}"
+	echo -e "${green}║  ${yellow}0${green}. Exit              ║${rest}"
+	echo -e "${green}╚══════════════════════╝${rest}"
 	echo -en "${cyan}Enter your choice: ${rest}"
 	read -r choice
 	case "$choice" in
-		1)
-			cfwarpIP
-			endipv4
-			endipresult
-			menu
-			;;
-		2)
-			cfwarpIP
-			endipv6
-			endipresult
-			menu
-			;;
-		3)
-			generate
-			menu
-			;;
-		4)
-			wire-g
-			menu
-			;;
-		5)
-			cloner
-			menu
-			;;
-		0)
-			echo -e "${cyan}Bye!${rest}"
-			exit
-			;;
-		*)
-			echo -e "${yellow}Invalid choice. Please select a valid option.${rest}"
-			menu
-			;;
-	esac
+1)
+	echo -e "${purple}*********************${rest}"
+	cfwarpIP
+	endipv4
+	endipresult
+	Endip_v4
+	;;
+2)
+	echo -e "${purple}*********************${rest}"
+	cfwarpIP
+	endipv6
+	endipresult
+	Endip_v6
+	;;
+3)
+	generate
+	;;
+4)
+	wire-g
+	;;
+5)
+	cloner
+	;;
+0)
+	echo -e "${purple}*********************${rest}"
+	echo -e "${cyan}By ${rest}"
+	exit
+	;;
+*)
+	echo -e "${yellow}********************${rest}"
+	echo "Invalid choice. Please select a valid option."
+	;;
+esac
 }
+
+# Main loop
+while true; do
+	menu
+done
