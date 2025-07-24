@@ -19,13 +19,13 @@ cd "$WARPS_DIR"
 if ! command -v python3 &> /dev/null; then
     echo "[+] Python3 not found. Attempting to install..."
     if command -v apt &> /dev/null; then
-        sudo apt update && sudo apt install -y python3
+        apt update && apt install -y python3
     elif command -v yum &> /dev/null; then
-        sudo yum install -y python3
+        yum install -y python3
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y python3
+        dnf install -y python3
     elif command -v pacman &> /dev/null; then
-        sudo pacman -Sy --noconfirm python
+        pacman -Sy --noconfirm python
     elif command -v pkg &> /dev/null; then
         pkg install -y python
     else
@@ -38,13 +38,13 @@ fi
 if ! command -v pip3 &> /dev/null; then
     echo "[+] pip3 not found. Attempting to install..."
     if command -v apt &> /dev/null; then
-        sudo apt update && sudo apt install -y python3-pip
+        apt update && apt install -y python3-pip
     elif command -v yum &> /dev/null; then
-        sudo yum install -y python3-pip
+        yum install -y python3-pip
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y python3-pip
+        dnf install -y python3-pip
     elif command -v pacman &> /dev/null; then
-        sudo pacman -Sy --noconfirm python-pip
+        pacman -Sy --noconfirm python-pip
     elif command -v pkg &> /dev/null; then
         pkg install -y python-pip
     else
