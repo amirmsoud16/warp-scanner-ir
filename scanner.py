@@ -241,46 +241,47 @@ def generate_private_key():
     return base64.b64encode(key).decode()
 
 def show_wireguard_config(ip, port):
-    warp_pubkey = "m+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE="
-    private_key = generate_private_key()
-    address = "172.16.0.2/32"
-    dns = "1.1.1.1"
-    allowed_ips = "0.0.0.0/0, ::/0"
-    keepalive = "25"
-    config = [
-        "[Interface]",
-        f"PrivateKey = {private_key}",
-        f"Address = {address}",
-        f"DNS = {dns}",
-        "",
-        "[Peer]",
-        f"PublicKey = {warp_pubkey}",
-        f"AllowedIPs = {allowed_ips}",
-        f"Endpoint = {ip}:{port}",
-        f"PersistentKeepalive = {keepalive}"
-    ]
-    uri = (
-        f"wg://{warp_pubkey}@{ip}:{port}?privatekey={private_key}"
-        f"&address={address}&dns={dns}&allowedips={allowed_ips.replace(' ', '')}&persistentkeepalive={keepalive}"
-    )
-    clear_screen()
-    GREEN = '\033[92m'
-    CYAN = '\033[96m'
-    YELLOW = '\033[93m'
-    RESET = '\033[0m'
-    # ساخت باکس زیبا
-    box_width = max(len(line) for line in config + [uri]) + 8
-    print(f"{CYAN}{'┌' + '─' * (box_width - 2) + '┐'}{RESET}")
-    print(f"{GREEN}│{' WireGuard Config '.center(box_width - 2)}│{RESET}")
-    print(f"{CYAN}{'├' + '─' * (box_width - 2) + '┤'}{RESET}")
-    for line in config:
-        print(f"{GREEN}│ {line.ljust(box_width - 4)} │{RESET}")
-    print(f"{CYAN}{'├' + '─' * (box_width - 2) + '┤'}{RESET}")
-    print(f"{YELLOW}│{' wg:// link: '.ljust(box_width - 2)}│{RESET}")
-    print(f"{YELLOW}│ {uri.ljust(box_width - 4)} │{RESET}")
-    print(f"{CYAN}{'└' + '─' * (box_width - 2) + '┘'}{RESET}")
-    input("Press Enter to exit...")
-    clear_screen()
+    import base64
+    import subprocess
+    try:
+        import pyperclip
+    except ImportError:
+        print("[+] Installing pyperclip for clipboard support...")
+        subprocess.check_call(["python3", "-m", "pip", "install", "pyperclip"])
+        import pyperclip
+    public_key = '...'  # می‌توانید کلید پابلیک Warp را اینجا قرار دهید
+    endpoint = f'{ip}:{port}'
+    config = f'''[Interface]
+PrivateKey = {generate_private_key()}
+Address = 172.16.0.2/32, 2606:4700:110:8765::2/128
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = {public_key}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = {endpoint}
+PersistentKeepalive = 25'''
+    config_b64 = base64.urlsafe_b64encode(config.encode()).decode()
+    wg_uri = f'wg://{config_b64}'
+    print("\033[96m==== WireGuard Config ====" + "\033[0m")
+    print(config)
+    print("\n\033[92m==== wg:// URI ====" + "\033[0m")
+    print(wg_uri)
+    print("\nWhich one do you want to copy to clipboard?")
+    print("  [1] WireGuard config text")
+    print("  [2] wg:// URI")
+    print("  [Enter] to skip")
+    choice = input("Enter your choice [1/2]: ").strip()
+    if choice == "1":
+        pyperclip.copy(config)
+        print("\033[92m[+] WireGuard config copied to clipboard!\033[0m")
+    elif choice == "2":
+        pyperclip.copy(wg_uri)
+        print("\033[92m[+] wg:// URI copied to clipboard!\033[0m")
+    else:
+        print("No copy performed.")
+    print("\nPress Enter to return to menu...")
+    input()
 
 def print_progress(current, total, message="Progress"):
     percent = int((current / total) * 100) if total else 100
@@ -347,15 +348,24 @@ def do_scan(filename, my_country):
         if res['best']:
             results.append(res)
         print_progress(idx, total, "Scanning IPs and ports")
-    show_results_boxed(results, show_download=show_download)
     # مرتب‌سازی بر اساس کمترین ICMP Ping
     results_sorted = sorted(
         (b for b in results if b['best'] and b.get('icmp_latency')),
         key=lambda x: x['icmp_latency']
     )
+    show_results_boxed(results, show_download=show_download)
     if results_sorted:
         best = results_sorted[0]
-        show_wireguard_config(best['ip'], best['best']['port'])
+        # سوال ساخت کانفیک
+        while True:
+            ans = input(f"Do you want WireGuard config with {best['ip']}:{best['best']['port']} (Best Ping)? [Y/n]: ").strip().lower()
+            if ans in ["", "y", "yes"]:
+                show_wireguard_config(best['ip'], best['best']['port'])
+                break
+            elif ans in ["n", "no"]:
+                break
+            else:
+                print("Please enter Y or N.")
     else:
         print_boxed(["No suitable IP found."])
 
