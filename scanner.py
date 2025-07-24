@@ -213,23 +213,13 @@ def show_results_boxed(results, show_download=False):
     clear_screen()
     COLORS = ['\033[92m', '\033[93m', '\033[94m', '\033[91m', '\033[95m', '\033[96m', '\033[90m']
     RESET = '\033[0m'
-    # Sort by lowest ICMP Ping
-    results_sorted = sorted(
-        (b for b in results if b['best'] and b.get('icmp_latency')),
-        key=lambda x: x['icmp_latency']
-    )
     lines = ["--- Best IPs (sorted by ICMP Ping) ---"]
-    # فقط برای 10 آی‌پی برتر تست دانلود انجام بده
-    download_speeds = [None] * 10
-    if show_download:
-        for idx, b in enumerate(results_sorted[:10]):
-            download_speeds[idx] = test_download_speed(b['ip'], b['best']['port'])
-    for idx, b in enumerate(results_sorted[:10]):
+    for idx, b in enumerate(results):
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
         line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}"
         if show_download:
-            speed = download_speeds[idx] if idx < len(download_speeds) else 'N/A'
+            speed = b.get('download_speed', 'N/A')
             line += f" | Download: {speed}"
         color = COLORS[idx % len(COLORS)]
         lines.append(f"{color}{line}{RESET}")
@@ -277,16 +267,18 @@ PersistentKeepalive = 25'''
     print("\nWhich one do you want to copy to clipboard?")
     print("  [1] WireGuard config text")
     print("  [2] wg:// URI")
-    print("  [Enter] to skip")
-    choice = input("Enter your choice [1/2]: ").strip()
+    print("  [0] To skip")
+    choice = input("Enter your choice [1/2/0]: ").strip()
     if choice == "1":
         pyperclip.copy(config)
         print("\033[92m[+] WireGuard config copied to clipboard!\033[0m")
     elif choice == "2":
         pyperclip.copy(wg_uri)
         print("\033[92m[+] wg:// URI copied to clipboard!\033[0m")
-    else:
+    elif choice == "0":
         print("No copy performed.")
+    else:
+        print("Invalid choice. No copy performed.")
     print("\nPress Enter to return to menu...")
     input()
 
@@ -325,13 +317,15 @@ class Spinner:
 def do_scan(filename, my_country):
     cidrs = load_cidr_list(filename)
     all_ips = []
-    for cidr in cidrs:
+    total_cidrs = len(cidrs)
+    for idx, cidr in enumerate(cidrs, 1):
         net = ipaddress.ip_network(cidr, strict=False)
         for ip in net.hosts():
             all_ips.append(str(ip))
-    total_ips = len(all_ips)
-    print_boxed([f"Total available IPs: {total_ips}"])
-    n_ip = 100
+        print_progress(idx, total_cidrs, "Building IP list")
+    sys.stdout.write("\n")
+    print_boxed([f"Total available IPs: {len(all_ips)}"])
+    n_ip = 100  # تعداد IPهایی که تست می‌شوند
     # سوال تست دانلود و پینگ
     while True:
         print("Which test do you want to run?")
@@ -350,6 +344,7 @@ def do_scan(filename, my_country):
     print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
     total = len(selected_ips)
+    # اسکن یکی‌یکی و گرفتن پینگ واقعی
     for idx, ip in enumerate(selected_ips, 1):
         res = scan_ip_optimized(ip, 0)  # فقط پورت‌های اصلی
         if res['best']:
@@ -357,13 +352,17 @@ def do_scan(filename, my_country):
         print_progress(idx, total, "Scanning IPs and ports")
     # مرتب‌سازی بر اساس کمترین ICMP Ping
     results_sorted = sorted(
-        (b for b in results if b['best'] and b.get('icmp_latency')),
+        (b for b in results if b['best'] and b.get('icmp_latency') and b['icmp_latency'] > 0),
         key=lambda x: x['icmp_latency']
     )
-    show_results_boxed(results, show_download=show_download)
+    # فقط اگر تست دانلود فعال بود، برای 10 آی‌پی برتر تست دانلود انجام بده
+    if show_download:
+        for idx, b in enumerate(results_sorted[:10]):
+            b['download_speed'] = test_download_speed(b['ip'], b['best']['port'])
+    # نمایش خروجی با سرعت دانلود (در صورت فعال بودن)
+    show_results_boxed(results_sorted[:10], show_download=show_download)
     if results_sorted:
         best = results_sorted[0]
-        # سوال ساخت کانفیک
         while True:
             ans = input(f"Do you want WireGuard config with {best['ip']}:{best['best']['port']} (Best Ping)? [Y/n]: ").strip().lower()
             if ans in ["", "y", "yes"]:
