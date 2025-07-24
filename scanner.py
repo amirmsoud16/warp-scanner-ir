@@ -3,12 +3,14 @@
 WARP Hiddify Config Generator - Professional Edition
 Author: amiri | github.com/amirmsoud16
 """
-import os, sys, random, time, requests, json, urllib.request, re, argparse
+import os, sys, random, time, requests, json, urllib.request, re, argparse, ipaddress
 from functools import partial
 from colorama import init, Fore, Style
 from tqdm import tqdm
 from tabulate import tabulate
 init(autoreset=True)
+
+MAIN_PORTS = [443, 2408, 8443, 2096, 2087, 2053, 2083, 2086, 80, 8080, 8880, 2052, 2082, 2095]
 
 # --- Color and Banner Utilities ---
 def c(text, color):
@@ -39,9 +41,25 @@ def print_boxed(lines, color='green'):
 
 # --- Input and File Utilities ---
 def load_ips(filename):
+    ips = []
     try:
         with open(filename, 'r') as f:
-            return [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                # Check for CIDR notation
+                try:
+                    if '/' in line:
+                        net = ipaddress.ip_network(line, strict=False)
+                        # Add all usable hosts (skip network/broadcast)
+                        ips.extend([str(ip) for ip in net.hosts()])
+                    else:
+                        ips.append(line)
+                except Exception:
+                    # If not a valid IP or CIDR, skip
+                    continue
+        return ips
     except Exception as e:
         print_boxed([f"Error reading {filename}: {e}"], 'red')
         return []
@@ -180,44 +198,49 @@ def save_scan_log(log_rows, is_termux, filename):
         print_boxed([f"Failed to save scan log: {e}"], 'red')
 
 # --- Main Logic ---
-def scan_and_generate(ip_file, count=20, port=443, output_name=None, no_color=False, non_interactive=False):
+def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_interactive=False):
     ips = load_ips(ip_file)
     if not ips:
         print_boxed([f"No IPs found in {ip_file}"], 'red')
         return
     print(c(f"Testing {min(count, len(ips))} IPs. Please wait...", 'cyan'))
     best_ip = None
+    best_port = None
     best_latency = None
     scan_rows = []
     for ip in progress_bar(random.sample(ips, min(count, len(ips))), total=min(count, len(ips)), desc="Scanning", color='magenta'):
-        latency = ping_ip(ip, port=port)
-        if latency is not None:
-            print(c(f"{ip}:{port} - {latency:.1f} ms", 'green'))
-            scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
-            if best_latency is None or latency < best_latency:
-                best_ip, best_latency = ip, latency
-        else:
-            print(c(f"{ip}:{port} - timeout", 'red'))
-            scan_rows.append([ip, port, "timeout", "FAIL"])
-    # Show table of results
+        ports = MAIN_PORTS[:]
+        random.shuffle(ports)
+        found = False
+        for port in ports:
+            latency = ping_ip(ip, port=port)
+            if latency is not None:
+                scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
+                print(c(f"{ip}:{port} - {latency:.1f} ms", 'green'))
+                if best_latency is None or latency < best_latency:
+                    best_ip, best_port, best_latency = ip, port, latency
+                found = True
+                break
+        if not found:
+            scan_rows.append([ip, '-', "timeout", "FAIL"])
+            print(c(f"{ip} - timeout", 'red'))
     print(tabulate(scan_rows, headers=["IP", "Port", "Latency(ms)", "Status"], tablefmt="fancy_grid"))
     if not best_ip:
         print_boxed(["No reachable IP found."], 'red')
         return
-    print_boxed([f"Best IP: {best_ip}:{port} ({best_latency:.1f} ms)"])
+    print_boxed([f"Best IP: {best_ip}:{best_port} ({best_latency:.1f} ms)"])
     if not non_interactive:
         answer = input(c("Do you want to generate a Hiddify config for this IP? [y/N]: ", 'yellow')).strip().lower()
         if answer not in ["y", "yes", "1"]:
             print_boxed(["Config generation skipped by user."], 'yellow')
             return
     Address_key, private_key, reserved = get_hiddify_keys()
-    config_text = build_hiddify_config(best_ip, port, Address_key, private_key, reserved)
+    config_text = build_hiddify_config(best_ip, best_port, Address_key, private_key, reserved)
     print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="], 'cyan')
     print(c(config_text, 'white'))
     is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
     filename = output_name or (choose_filename('warp_hiddify_config.txt') if not non_interactive else 'warp_hiddify_config.txt')
     save_config(config_text, is_termux, filename)
-    # Ask to save scan log
     if not non_interactive:
         save_log = input(c("Do you want to save the scan log as CSV? [y/N]: ", 'yellow')).strip().lower()
         if save_log in ["y", "yes", "1"]:
@@ -235,13 +258,12 @@ Options:
   --ipv4            Use ips-v4.txt for scanning (default if neither --ipv4 nor --ipv6 is given)
   --ipv6            Use ips-v6.txt for scanning
   --count N         Number of IPs to scan (default: 20)
-  --port P          Port to test for ping (default: 443)
   --output FILE     Output config filename (default: warp_hiddify_config.txt)
   --no-color        Disable colored output
   --help            Show this help message and exit
 
 Examples:
-  python3 scanner.py --ipv4 --count 30 --port 443 --output myconfig.txt
+  python3 scanner.py --ipv4 --count 30 --output myconfig.txt
   python3 scanner.py --ipv6 --no-color
 
 If no arguments are given, interactive mode will be used.
@@ -253,7 +275,6 @@ def main():
     parser.add_argument('--ipv4', action='store_true')
     parser.add_argument('--ipv6', action='store_true')
     parser.add_argument('--count', type=int, default=20)
-    parser.add_argument('--port', type=int, default=443)
     parser.add_argument('--output', type=str)
     parser.add_argument('--no-color', action='store_true')
     parser.add_argument('--help', action='store_true')
@@ -263,15 +284,14 @@ def main():
         print_help()
         return
 
-    # If any CLI arg except --help is given, use non-interactive mode
     non_interactive = any([
-        args.ipv4, args.ipv6, args.count != 20, args.port != 443, args.output, args.no_color
+        args.ipv4, args.ipv6, args.count != 20, args.output, args.no_color
     ])
 
     if non_interactive:
         banner()
         ip_file = 'ips-v4.txt' if args.ipv4 or not args.ipv6 else 'ips-v6.txt'
-        scan_and_generate(ip_file, count=args.count, port=args.port, output_name=args.output, no_color=args.no_color, non_interactive=True)
+        scan_and_generate(ip_file, count=args.count, output_name=args.output, no_color=args.no_color, non_interactive=True)
     else:
         banner()
         print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
@@ -283,16 +303,11 @@ def main():
         else:
             print(c("Goodbye!", 'cyan'))
             return
-        # Ask for count and port interactively
         try:
             count = int(input(c("How many IPs to scan? (default 20): ", 'yellow')).strip() or "20")
         except Exception:
             count = 20
-        try:
-            port = int(input(c("Which port to test? (default 443): ", 'yellow')).strip() or "443")
-        except Exception:
-            port = 443
-        scan_and_generate(ip_file, count=count, port=port)
+        scan_and_generate(ip_file, count=count)
 
 if __name__ == '__main__':
     main() 
