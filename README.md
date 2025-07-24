@@ -5,6 +5,4 @@ install
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/endip/install.sh)
 ```
-![16](https://raw.githubusercontent.com/Ptechgithub/configs/main/media/16.jpg)
-
 ![0](https://raw.githubusercontent.com/Ptechgithub/configs/main/media/line.gif)
