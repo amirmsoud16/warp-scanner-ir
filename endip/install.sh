@@ -32,7 +32,7 @@ cfwarpIP() {
 	if [[ ! -f "$PREFIX/bin/warpendpoint" ]]; then
 		echo "Downloading warpendpoint program"
 		if [[ -n $cpu ]]; then
-			curl -L -o warpendpoint -# --retry 2 https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/endip/$cpu
+			curl -L -o warpendpoint -# --retry 2 https://raw.githubusercontent.com/Ptechgithub/warp/main/endip/$cpu
 			cp warpendpoint $PREFIX/bin
 			chmod +x $PREFIX/bin/warpendpoint
 		fi
@@ -266,22 +266,24 @@ endipresult() {
 	echo -e "${green}Results Saved in result.csv${rest}"
 	echo ""
 	if [ "$Endip_v4" ]; then
-		echo -e "${purple}************************************${rest}"
-		echo -e "${purple}*           ${yellow}Best IPv4:Port${purple}         *${rest}"
-		echo -e "${purple}*                                  *${rest}"
-		echo -e "${purple}*          ${cyan}$Endip_v4${purple}     *${rest}"
-		echo -e "${purple}*           ${cyan}Delay: ${green}[$delay]        ${purple}*${rest}"
-		echo -e "${purple}************************************${rest}"
+		echo -e "${blue}************************************${rest}"
+		echo -e "${blue}*           ${yellow}Best IPv4:Port${blue}         *${rest}"
+		echo -e "${blue}*                                  *${rest}"
+		echo -e "${blue}*          ${cyan}$Endip_v4${blue}     *${rest}"
+		echo -e "${blue}*           ${cyan}Delay: ${green}[$delay]        ${blue}*${rest}"
+		echo -e "${blue}************************************${rest}"
 	elif [ "$Endip_v6" ]; then
-		echo -e "${purple}********************************************${rest}"
-		echo -e "${purple}*          ${yellow}Best [IPv6]:Port                ${purple}*${rest}"
-		echo -e "${purple}*                                          *${rest}"
-		echo -e "${purple}* ${cyan}$Endip_v6${purple} *${rest}"
-		echo -e "${purple}*           ${cyan}Delay: ${green}[$delay]               ${purple}*${rest}"
-		echo -e "${purple}********************************************${rest}"
+		echo -e "${blue}********************************************${rest}"
+		echo -e "${blue}*          ${yellow}Best [IPv6]:Port                ${blue}*${rest}"
+		echo -e "${blue}*                                          *${rest}"
+		echo -e "${blue}* ${cyan}$Endip_v6${blue} *${rest}"
+		echo -e "${blue}*           ${cyan}Delay: ${green}[$delay]               ${blue}*${rest}"
+		echo -e "${blue}********************************************${rest}"
 	else
 		echo -e "${red} No valid IP addresses found.${rest}"
 	fi
+	echo -en "${yellow}برای بازگشت به منو اینتر بزنید...${rest}"
+	read -r
 	rm warpendpoint >/dev/null 2>&1
 	rm -rf ip.txt
 	# exit removed to return to menu
@@ -511,25 +513,18 @@ cloner() {
 #Menu
 menu() {
 	clear
-	echo -e "${cyan}By --> Peyman * Github.com/Ptechgithub * ${rest}"
+	echo -e "${cyan}hydra${rest}"
 	echo ""
-	echo -e "${purple}**********************${rest}"
-	echo -e "${purple}*  ${green}Endpoint Scanner ${purple} *${rest}"
-	echo -e "${purple}*  ${green}wire-g installer ${purple} *${rest}"
-	echo -e "${purple}*  ${green}License cloner${purple}    *${rest}"
-	echo -e "${purple}**********************${rest}"
-	echo -e "${purple}[1] ${cyan}Preferred${green} IPV4${purple}   * ${rest}"
-	echo -e "${purple}                     *${rest}"
-	echo -e "${purple}[2] ${cyan}Preferred${green} IPV6${purple}   * ${rest}"
-	echo -e "${purple}                     *${rest}"
-	echo -e "${purple}[3] ${cyan}Free Config ${green}Wgcf${purple} *${rest}"
-	echo -e "${purple}                     *${rest}"
-	echo -e "${purple}[4] ${cyan}Install ${green}wire-g${purple}   *${rest}"
-	echo -e "${purple}                     *${rest}"
-	echo -e "${purple}[5] ${cyan}License Cloner${purple}   *${rest}"
-	echo -e "${purple}                     *${rest}"
-	echo -e "${purple}[${red}0${purple}] Exit             *${rest}"
-	echo -e "${purple}**********************${rest}"
+	echo -e "${blue}╔══════════════════════════════════════╗${rest}"
+	echo -e "${blue}║${yellow}         Warp Endpoint Menu        ${blue}║${rest}"
+	echo -e "${blue}╠══════════════════════════════════════╣${rest}"
+	echo -e "${blue}║${yellow} 1. Preferred IPV4                  ${blue}║${rest}"
+	echo -e "${blue}║${yellow} 2. Preferred IPV6                  ${blue}║${rest}"
+	echo -e "${blue}║${yellow} 3. Free Config Wgcf                ${blue}║${rest}"
+	echo -e "${blue}║${yellow} 4. Install wire-g                  ${blue}║${rest}"
+	echo -e "${blue}║${yellow} 5. License Cloner                  ${blue}║${rest}"
+	echo -e "${blue}║${yellow} 0. Exit                            ${blue}║${rest}"
+	echo -e "${blue}╚══════════════════════════════════════╝${rest}"
 	echo -en "${cyan}Enter your choice: ${rest}"
 	read -r choice
 	case "$choice" in
