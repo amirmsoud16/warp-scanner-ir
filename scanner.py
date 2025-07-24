@@ -1,14 +1,24 @@
 """
 Warp Anycast IP & Port Scanner
-=============================
+============================
 
 A professional tool to find the best IP and port for Warp (Cloudflare) with low ping and closest geographic location to your internet.
+
+Features:
+- Scans a list of IPs and ports to find the best (lowest ping) endpoint.
+- Generates a ready-to-use Hiddify/Sing-box (Warp) JSON config for the best IP.
 
 Usage:
     python3 scanner.py
 
 Requirements:
-    pip install requests
+    - Python 3.6 or newer
+    - requests
+    - urllib3 (usually installed with requests)
+    - ping3 (optional, for real ICMP ping)
+
+Install requirements:
+    pip install requests urllib3 ping3
 
 """
 
@@ -310,80 +320,103 @@ def do_scan(filename):
     show_results_boxed(results_sorted[:10], show_download=False)
     if results_sorted:
         best = results_sorted[0]
-        def get_hiddify_keys():
-            import urllib.request, requests, re
-            try:
-                output = urllib.request.urlopen("https://api.zeroteam.top/warp?format=sing-box", timeout=30).read().decode('utf-8')
-            except Exception:
-                output = requests.get("https://api.zeroteam.top/warp?format=sing-box", timeout=30).text
-            Address_pattern = r'"2606:4700:[0-9a-f:]+/128"'
-            private_key_pattern = r'"private_key":"[0-9a-zA-Z/+]+="'
-            reserved_pattern = r'"reserved":\[[0-9]+(,[0-9]+){2}\]'
-            Address_search = re.search(Address_pattern, output)
-            private_key_search = re.search(private_key_pattern, output)
-            reserved_search = re.search(reserved_pattern, output)
-            Address_key = Address_search.group(0).replace('"', '') if Address_search else None
-            private_key = private_key_search.group(0).split(':')[1].replace('"', '') if private_key_search else None
-            reserved = reserved_search.group(0).replace('"reserved":', '').replace('"', '') if reserved_search else None
-            return Address_key, private_key, reserved
-        Address_key, private_key, reserved = get_hiddify_keys()
-        public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-        warp_json = {
-            "outbounds": [
-                {
-                    "protocol": "wireguard",
-                    "settings": {
-                        "address": [
-                            "172.16.0.2/32",
-                            Address_key
-                        ],
-                        "mtu": 1280,
-                        "peers": [
-                            {
-                                "endpoint": f"{best['ip']}:{best['best']['port']}",
-                                "publicKey": public_key
-                            }
-                        ],
-                        "reserved": eval(reserved) if reserved else [0,0,0],
-                        "secretKey": private_key
-                    },
-                    "tag": "warp"
-                },
-                {"protocol": "dns", "tag": "dns-out"},
-                {"protocol": "freedom", "settings": {}, "tag": "direct"},
-                {"protocol": "blackhole", "settings": {"response": {"type": "http"}}, "tag": "block"}
-            ],
-            "policy": {
-                "levels": {
-                    "8": {
-                        "connIdle": 300,
-                        "downlinkOnly": 1,
-                        "handshake": 4,
-                        "uplinkOnly": 1
-                    }
-                },
-                "system": {
-                    "statsOutboundUplink": True,
-                    "statsOutboundDownlink": True
-                }
-            },
-            "remarks": "hydra",
-            "routing": {
-                "domainStrategy": "IPIfNonMatch",
-                "rules": [
+        answer = input("Do you want to generate a Hiddify config for the best IP? [y/N]: ").strip().lower()
+        if answer in ["y", "yes", "1"]:
+            def get_hiddify_keys():
+                import urllib.request, requests, re
+                try:
+                    output = urllib.request.urlopen("https://api.zeroteam.top/warp?format=sing-box", timeout=30).read().decode('utf-8')
+                except Exception:
+                    output = requests.get("https://api.zeroteam.top/warp?format=sing-box", timeout=30).text
+                Address_pattern = r'"2606:4700:[0-9a-f:]+/128"'
+                private_key_pattern = r'"private_key":"[0-9a-zA-Z/+]+="'
+                reserved_pattern = r'"reserved":\[[0-9]+(,[0-9]+){2}\]'
+                Address_search = re.search(Address_pattern, output)
+                private_key_search = re.search(private_key_pattern, output)
+                reserved_search = re.search(reserved_pattern, output)
+                Address_key = Address_search.group(0).replace('"', '') if Address_search else None
+                private_key = private_key_search.group(0).split(':')[1].replace('"', '') if private_key_search else None
+                reserved = reserved_search.group(0).replace('"reserved":', '').replace('"', '') if reserved_search else None
+                return Address_key, private_key, reserved
+            Address_key, private_key, reserved = get_hiddify_keys()
+            public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+            warp_json = {
+                "outbounds": [
                     {
-                        "network": "tcp,udp",
-                        "outboundTag": "warp",
-                        "type": "field"
+                        "protocol": "wireguard",
+                        "settings": {
+                            "address": [
+                                "172.16.0.2/32",
+                                Address_key
+                            ],
+                            "mtu": 1280,
+                            "peers": [
+                                {
+                                    "endpoint": f"{best['ip']}:{best['best']['port']}",
+                                    "publicKey": public_key
+                                }
+                            ],
+                            "reserved": eval(reserved) if reserved else [0,0,0],
+                            "secretKey": private_key
+                        },
+                        "tag": "warp"
+                    },
+                    {"protocol": "dns", "tag": "dns-out"},
+                    {"protocol": "freedom", "settings": {}, "tag": "direct"},
+                    {"protocol": "blackhole", "settings": {"response": {"type": "http"}}, "tag": "block"}
+                ],
+                "policy": {
+                    "levels": {
+                        "8": {
+                            "connIdle": 300,
+                            "downlinkOnly": 1,
+                            "handshake": 4,
+                            "uplinkOnly": 1
+                        }
+                    },
+                    "system": {
+                        "statsOutboundUplink": True,
+                        "statsOutboundDownlink": True
                     }
-                ]
-            },
-            "stats": {}
-        }
-        import json
-        print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="])
-        print(json.dumps(warp_json, indent=2, ensure_ascii=False))
-        input("Press Enter to return to menu...")
+                },
+                "remarks": "hydra",
+                "routing": {
+                    "domainStrategy": "IPIfNonMatch",
+                    "rules": [
+                        {
+                            "network": "tcp,udp",
+                            "outboundTag": "warp",
+                            "type": "field"
+                        }
+                    ]
+                },
+                "stats": {}
+            }
+            import json, sys, os
+            config_text = json.dumps(warp_json, indent=2, ensure_ascii=False)
+            print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="])
+            print(config_text)
+            # Save config as .txt
+            is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+            if is_termux:
+                # Android/Termux: save to Downloads
+                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+                if not os.path.isdir(save_dir):
+                    save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+                os.makedirs(save_dir, exist_ok=True)
+                file_path = os.path.join(save_dir, 'warp_hiddify_config.txt')
+            else:
+                # Linux: save to WARPS folder
+                warps_dir = os.path.expanduser('~/WARPS')
+                os.makedirs(warps_dir, exist_ok=True)
+                file_path = os.path.join(warps_dir, 'warp_hiddify_config.txt')
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(config_text)
+            print_boxed([f"Config saved as {file_path}"])
+            input("Press Enter to return to menu...")
+        else:
+            print_boxed(["Config generation skipped by user."])
+            input("Press Enter to return to menu...")
     else:
         print_boxed(["No suitable IP found."])
 
