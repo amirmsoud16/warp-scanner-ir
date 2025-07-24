@@ -25,6 +25,11 @@ import threading
 import itertools
 import os
 
+# اطمینان از وجود $HOME/bin در PATH برای اجرای wgcf
+home_bin = os.path.join(os.environ.get('HOME', ''), 'bin')
+if home_bin and home_bin not in os.environ.get('PATH', ''):
+    os.environ['PATH'] = f"{home_bin}:{os.environ.get('PATH', '')}"
+
 try:
     from ping3 import ping as icmp_ping
 except ImportError:
@@ -52,6 +57,66 @@ def print_boxed(text_lines):
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+def auto_wgcf_register_and_get_config():
+    import subprocess, shutil, sys, os
+    # بررسی نصب بودن wgcf
+    if not shutil.which("wgcf"):
+        print_boxed([
+            "wgcf not found!",
+            "Please install wgcf manually:",
+            "Linux: wget https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_$(uname -m)_linux.tar.gz && tar xzf wgcf_* && mv wgcf ~/bin/",
+            "Termux: pkg install golang && go install github.com/ViRb3/wgcf@latest && cp ~/go/bin/wgcf ~/bin/",
+            "Then run this menu again."
+        ])
+        input("Press Enter to return to menu...")
+        return
+    # ثبت‌نام و ساخت کانفیک
+    try:
+        subprocess.run(["wgcf", "register"], check=True)
+        subprocess.run(["wgcf", "generate"], check=True)
+    except Exception as e:
+        print_boxed([f"wgcf error: {e}"])
+        input("Press Enter to return to menu...")
+        return
+    conf_path = os.path.join(os.getcwd(), "wgcf-profile.conf")
+    if os.path.exists(conf_path):
+        name = input("Enter a name to save this config (or leave empty to skip): ").strip()
+        if not name:
+            print("Skipped saving config.")
+            return
+        # همیشه در configs ذخیره کن
+        os.makedirs("configs", exist_ok=True)
+        filename = os.path.join("configs", f"{name}.conf")
+        if os.path.exists(filename):
+            print("A config with this name already exists. Choose another name.")
+            return
+        shutil.copy(conf_path, filename)
+        print(f"Config saved as {filename}")
+        # اگر ترماکس بود، اجازه دسترسی storage بگیرد و یک کپی هم در Downloads بگذارد
+        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+        if is_termux:
+            try:
+                print("[+] Requesting storage permission for Termux (if needed)...")
+                subprocess.run(["termux-setup-storage"], check=False)
+            except Exception:
+                pass
+            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+            if not os.path.isdir(save_dir):
+                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+                download_file = os.path.join(save_dir, f"{name}.conf")
+                shutil.copy(conf_path, download_file)
+                print(f"Config also saved as {download_file}")
+            except Exception as e:
+                print(f"Could not save to Downloads: {e}")
+        print_boxed(["[+] Warp config generated and saved!"])
+    else:
+        print_boxed(["wgcf-profile.conf not found after generation!"])
+    input("Press Enter to return to menu...")
+
+# افزودن گزینه به منو
+
 def main_menu():
     while True:
         clear_screen()
@@ -60,6 +125,7 @@ def main_menu():
             "1. Scan IPv4",
             "2. Scan IPv6",
             "3. Show saved configs",
+            "4. Generate real Warp config (auto-register with wgcf)",
             "0. Exit"
         ])
         choice = input("Enter your choice: ").strip()
@@ -69,6 +135,8 @@ def main_menu():
             do_scan(IPV6_FILE)
         elif choice == "3":
             show_saved_configs()
+        elif choice == "4":
+            auto_wgcf_register_and_get_config()
         elif choice == "0":
             print("Goodbye!")
             break
@@ -430,8 +498,75 @@ class Spinner:
         self.stop_running = True
         self.thread.join()
 
-# تغییر در do_scan برای استفاده از اولین پورت باز
+def get_wgcf_private_key_and_config(ip, port, name):
+    import subprocess, shutil, sys, os
+    # بررسی نصب بودن wgcf
+    if not shutil.which("wgcf"):
+        print_boxed([
+            "wgcf not found!",
+            "Please install wgcf manually:",
+            "Linux: wget https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_$(uname -m)_linux.tar.gz && tar xzf wgcf_* && mv wgcf ~/bin/",
+            "Termux: pkg install golang && go install github.com/ViRb3/wgcf@latest && cp ~/go/bin/wgcf ~/bin/",
+            "Then run this menu again."
+        ])
+        input("Press Enter to return to menu...")
+        return None
+    # ثبت‌نام و ساخت کانفیک
+    try:
+        subprocess.run(["wgcf", "register"], check=True)
+        subprocess.run(["wgcf", "generate"], check=True)
+    except Exception as e:
+        print_boxed([f"wgcf error: {e}"])
+        input("Press Enter to return to menu...")
+        return None
+    conf_path = os.path.join(os.getcwd(), "wgcf-profile.conf")
+    if os.path.exists(conf_path):
+        # کانفیک را بخوان و فقط Endpoint را جایگزین کن
+        with open(conf_path, "r") as f:
+            lines = f.readlines()
+        new_lines = []
+        for line in lines:
+            if line.strip().startswith("Endpoint ="):
+                new_lines.append(f"Endpoint = {ip}:{port}\n")
+            else:
+                new_lines.append(line)
+        config = ''.join(new_lines)
+        # ذخیره در configs و (در صورت ترماکس) Downloads
+        os.makedirs("configs", exist_ok=True)
+        filename = os.path.join("configs", f"{name}.conf")
+        with open(filename, "w") as f:
+            f.write(config)
+        print(f"Config saved as {filename}")
+        # اگر ترماکس بود، اجازه دسترسی storage بگیرد و یک کپی هم در Downloads بگذارد
+        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+        if is_termux:
+            try:
+                print("[+] Requesting storage permission for Termux (if needed)...")
+                subprocess.run(["termux-setup-storage"], check=False)
+            except Exception:
+                pass
+            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+            if not os.path.isdir(save_dir):
+                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+                download_file = os.path.join(save_dir, f"{name}.conf")
+                with open(download_file, "w") as f:
+                    f.write(config)
+                print(f"Config also saved as {download_file}")
+            except Exception as e:
+                print(f"Could not save to Downloads: {e}")
+        print_boxed(["[+] Warp config generated and saved!"])
+        print("\n==== WireGuard Config ====" + "\033[0m")
+        print(config)
+        input("\nPress Enter to return to menu...")
+        return config
+    else:
+        print_boxed(["wgcf-profile.conf not found after generation!"])
+        input("Press Enter to return to menu...")
+        return None
 
+# ویرایش do_scan:
 def do_scan(filename):
     cidrs = load_cidr_list(filename)
     all_ips = []
@@ -464,7 +599,9 @@ def do_scan(filename):
         while True:
             ans = input(f"Do you want WireGuard config with {best['ip']}:{best['best']['port']} (Best Ping)? [Y/n]: ").strip().lower()
             if ans in ["", "y", "yes"]:
-                show_wireguard_config(best['ip'], best['best']['port'])
+                name = input("Enter a name to save this config (or leave empty to skip): ").strip()
+                if name:
+                    get_wgcf_private_key_and_config(best['ip'], best['best']['port'], name)
                 break
             elif ans in ["n", "no"]:
                 break
