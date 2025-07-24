@@ -64,9 +64,9 @@ def main_menu():
         ])
         choice = input("Enter your choice: ").strip()
         if choice == "1":
-            do_scan(IPV4_FILE, get_my_location()['country'])
+            do_scan(IPV4_FILE)
         elif choice == "2":
-            do_scan(IPV6_FILE, get_my_location()['country'])
+            do_scan(IPV6_FILE)
         elif choice == "3":
             show_saved_configs()
         elif choice == "0":
@@ -323,7 +323,7 @@ class Spinner:
 
 # تغییر در do_scan برای استفاده از اولین پورت باز
 
-def do_scan(filename, my_country):
+def do_scan(filename):
     cidrs = load_cidr_list(filename)
     all_ips = []
     total_cidrs = len(cidrs)
@@ -335,7 +335,6 @@ def do_scan(filename, my_country):
     sys.stdout.write("\n")
     print_boxed([f"Total available IPs: {len(all_ips)}"])
     n_ip = 100  # تعداد IPهایی که تست می‌شوند
-    # فقط پینگ واقعی
     selected_ips = random.sample(all_ips, n_ip)
     print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
@@ -384,7 +383,7 @@ def main():
                 continue
             clear_screen()
             filename = IPV4_FILE if choice == '1' else IPV6_FILE
-            do_scan(filename, my_country)
+            do_scan(filename)
 
 if __name__ == '__main__':
     main() 
