@@ -80,7 +80,7 @@ if ! command -v wgcf &> /dev/null; then
         export PATH=$PATH:$GOPATH/bin
         mkdir -p $HOME/bin
         mkdir -p $GOPATH/bin
-        go install github.com/ViRb3/wgcf@latest
+        go install github.com/ViRb3/wgcf
         cp $GOPATH/bin/wgcf $HOME/bin/wgcf
         chmod +x $HOME/bin/wgcf
         echo "[+] wgcf installed in ~/bin."
