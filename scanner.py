@@ -3,68 +3,18 @@
 WARP Hiddify Config Generator - Professional Edition
 Author: amiri | github.com/amirmsoud16
 """
-import os, sys, random, time, requests, json, urllib.request, re, argparse, subprocess
+import os, sys, random, time, requests, json, urllib.request, re, argparse
 from functools import partial
-
-# --- Dependency Management ---
-def ensure_package(pkg, import_name=None):
-    import importlib
-    try:
-        importlib.import_module(import_name or pkg)
-        return True
-    except ImportError:
-        print(f"[!] {pkg} is not installed.")
-        ans = input(f"Do you want to install {pkg}? [Y/n]: ").strip().lower()
-        if ans in ["", "y", "yes", "1"]:
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-                print(f"[+] {pkg} installed. Please rerun the program.")
-                sys.exit(0)
-            except Exception as e:
-                print(f"[!] Failed to install {pkg}: {e}")
-                sys.exit(1)
-        else:
-            print(f"[!] {pkg} is required for best experience. Continuing without it.")
-            return False
+from colorama import init, Fore, Style
+from tqdm import tqdm
+from tabulate import tabulate
+init(autoreset=True)
 
 # --- Color and Banner Utilities ---
-def try_import_colorama():
-    try:
-        from colorama import init, Fore, Style
-        init(autoreset=True)
-        return True, Fore, Style
-    except ImportError:
-        return False, None, None
-
-# --- Table Utility ---
-def try_import_tabulate():
-    try:
-        from tabulate import tabulate
-        return tabulate
-    except ImportError:
-        return None
-
-# --- Main Script ---
-# Check for colorama and tqdm (offer install if missing)
-COLOR, Fore, Style = try_import_colorama()
-if not COLOR:
-    ensure_package('colorama')
-try:
-    from tqdm import tqdm
-except ImportError:
-    ensure_package('tqdm')
-
-TABULATE = try_import_tabulate()
-
-
 def c(text, color):
-    """Colorize text if colorama is available."""
-    if not COLOR:
-        return text
     return getattr(Fore, color.upper(), Fore.WHITE) + str(text) + Style.RESET_ALL
 
 def banner():
-    """Prints a beautiful ASCII banner and welcome message."""
     art = r"""
  __        __   _                            _  _  _           _           
  \ \      / /__| | ___ ___  _ __ ___   ___  | || || | ___  ___| |_ ___ _ __ 
@@ -80,7 +30,6 @@ def banner():
     print()
 
 def print_boxed(lines, color='green'):
-    """Prints a box around the given lines with optional color."""
     width = max(len(line) for line in lines) + 4
     border = c("\n" + "┌" + "─" * (width - 2) + "┐", color)
     print(border)
@@ -90,7 +39,6 @@ def print_boxed(lines, color='green'):
 
 # --- Input and File Utilities ---
 def load_ips(filename):
-    """Loads IPs from a file, ignoring comments and empty lines."""
     try:
         with open(filename, 'r') as f:
             return [line.strip() for line in f if line.strip() and not line.startswith('#')]
@@ -99,13 +47,11 @@ def load_ips(filename):
         return []
 
 def choose_filename(default_name):
-    """Prompt user for a filename, with a default."""
     name = input(f"Enter config filename (default: {default_name}): ").strip()
     return name if name else default_name
 
 # --- Scanning and Progress ---
 def ping_ip(ip, port=443, timeout=0.4):
-    """Ping an IP on the given port using TCP. Returns latency in ms or None on failure."""
     import socket
     start = time.time()
     try:
@@ -119,24 +65,10 @@ def ping_ip(ip, port=443, timeout=0.4):
         return None
 
 def progress_bar(iterable, total=None, desc="", color='cyan'):
-    try:
-        from tqdm import tqdm
-        return tqdm(iterable, total=total, desc=desc, ncols=70)
-    except ImportError:
-        if desc:
-            print(c(f"[!] tqdm not installed. Progress bar will be basic. To install: pip install tqdm", 'yellow'))
-        total = total or len(iterable)
-        for i, item in enumerate(iterable, 1):
-            percent = int((i / total) * 100)
-            bar = ('#' * (percent // 2)).ljust(50)
-            sys.stdout.write(f"\r{desc}: [{bar}] {percent}% ({i}/{total})")
-            sys.stdout.flush()
-            yield item
-        print()
+    return tqdm(iterable, total=total, desc=desc, ncols=70)
 
 # --- Hiddify Config Generation ---
 def get_hiddify_keys():
-    """Fetches WireGuard keys and reserved values from the API."""
     try:
         output = urllib.request.urlopen("https://api.zeroteam.top/warp?format=sing-box", timeout=30).read().decode('utf-8')
     except Exception:
@@ -153,7 +85,6 @@ def get_hiddify_keys():
     return Address_key, private_key, reserved
 
 def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
-    """Builds the Hiddify/Sing-box JSON config for the best IP."""
     public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
     warp_json = {
         "outbounds": [
@@ -211,7 +142,6 @@ def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
 
 # --- Saving and Output ---
 def save_config(config_text, is_termux, filename):
-    """Saves the config file to Downloads (Android) or ~/WARPS (Linux)."""
     if is_termux:
         save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
         if not os.path.isdir(save_dir):
@@ -230,7 +160,6 @@ def save_config(config_text, is_termux, filename):
         print_boxed([f"Failed to save config: {e}"], 'red')
 
 def save_scan_log(log_rows, is_termux, filename):
-    """Saves the scan log as a CSV file in the same folder as the config."""
     if is_termux:
         save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
         if not os.path.isdir(save_dir):
@@ -252,10 +181,6 @@ def save_scan_log(log_rows, is_termux, filename):
 
 # --- Main Logic ---
 def scan_and_generate(ip_file, count=20, port=443, output_name=None, no_color=False, non_interactive=False):
-    """Scans IPs, finds the best, and generates/saves the Hiddify config."""
-    global COLOR
-    if no_color:
-        COLOR = False
     ips = load_ips(ip_file)
     if not ips:
         print_boxed([f"No IPs found in {ip_file}"], 'red')
@@ -263,7 +188,6 @@ def scan_and_generate(ip_file, count=20, port=443, output_name=None, no_color=Fa
     print(c(f"Testing {min(count, len(ips))} IPs. Please wait...", 'cyan'))
     best_ip = None
     best_latency = None
-    scan_log = []
     scan_rows = []
     for ip in progress_bar(random.sample(ips, min(count, len(ips))), total=min(count, len(ips)), desc="Scanning", color='magenta'):
         latency = ping_ip(ip, port=port)
@@ -276,13 +200,7 @@ def scan_and_generate(ip_file, count=20, port=443, output_name=None, no_color=Fa
             print(c(f"{ip}:{port} - timeout", 'red'))
             scan_rows.append([ip, port, "timeout", "FAIL"])
     # Show table of results
-    if TABULATE:
-        from tabulate import tabulate
-        print(tabulate(scan_rows, headers=["IP", "Port", "Latency(ms)", "Status"], tablefmt="fancy_grid"))
-    else:
-        print_boxed(["[!] tabulate not installed. Table output will be basic. To install: pip install tabulate"], 'yellow')
-        for row in scan_rows:
-            print(f"{row[0]}:{row[1]} - {row[2]} ms - {row[3]}")
+    print(tabulate(scan_rows, headers=["IP", "Port", "Latency(ms)", "Status"], tablefmt="fancy_grid"))
     if not best_ip:
         print_boxed(["No reachable IP found."], 'red')
         return
