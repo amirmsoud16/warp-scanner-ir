@@ -3,7 +3,7 @@
 WARP Hiddify Config Generator - Professional Edition
 Author: amiri | github.com/amirmsoud16
 """
-import os, sys, random, time, requests, json, urllib.request, re, argparse, ipaddress
+import os, sys, random, time, requests, json, urllib.request, re, argparse, ipaddress, subprocess, threading
 from functools import partial
 from colorama import init, Fore, Style
 from tqdm import tqdm
@@ -15,6 +15,9 @@ MAIN_PORTS = [443, 2408, 8443, 2096, 2087, 2053, 2083, 2086, 80, 8080, 8880, 205
 # --- Color and Banner Utilities ---
 def c(text, color):
     return getattr(Fore, color.upper(), Fore.WHITE) + str(text) + Style.RESET_ALL
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 def banner():
     art = """
@@ -35,6 +38,17 @@ def print_boxed(lines, color='green'):
     for line in lines:
         print(c("│ " + line.ljust(width - 3) + "│", color))
     print(c("└" + "─" * (width - 2) + "┘\n", color))
+
+# --- Termux Storage Permission ---
+def ensure_termux_storage():
+    if 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ:
+        storage_path = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+        if not os.path.isdir(storage_path):
+            try:
+                print_boxed(["Requesting storage permission for Termux..."], 'yellow')
+                subprocess.run(['termux-setup-storage'], check=True)
+            except Exception as e:
+                print_boxed([f'Failed to request storage permission: {e}'], 'red')
 
 # --- Input and File Utilities ---
 def load_ips(filename):
@@ -79,8 +93,26 @@ def ping_ip(ip, port=443, timeout=0.4):
     except Exception:
         return None
 
-def progress_bar(iterable, total=None, desc="", color='cyan'):
-    return tqdm(iterable, total=total, desc=desc, ncols=70)
+class Spinner:
+    def __init__(self, message="Loading..."):
+        self.spinner = ['|', '/', '-', '\\']
+        self.idx = 0
+        self.running = False
+        self.message = message
+        self.thread = threading.Thread(target=self.run)
+    def run(self):
+        while self.running:
+            sys.stdout.write(f"\r{self.message} {self.spinner[self.idx % len(self.spinner)]}")
+            sys.stdout.flush()
+            self.idx += 1
+            time.sleep(0.1)
+        sys.stdout.write('\r' + ' ' * (len(self.message) + 2) + '\r')
+    def start(self):
+        self.running = True
+        self.thread.start()
+    def stop(self):
+        self.running = False
+        self.thread.join()
 
 # --- Hiddify Config Generation ---
 def get_hiddify_keys():
@@ -158,6 +190,7 @@ def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
 # --- Saving and Output ---
 def save_config(config_text, is_termux, filename):
     if is_termux:
+        ensure_termux_storage()
         save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
         if not os.path.isdir(save_dir):
             save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
@@ -176,6 +209,7 @@ def save_config(config_text, is_termux, filename):
 
 def save_scan_log(log_rows, is_termux, filename):
     if is_termux:
+        ensure_termux_storage()
         save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
         if not os.path.isdir(save_dir):
             save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
@@ -196,6 +230,7 @@ def save_scan_log(log_rows, is_termux, filename):
 
 # --- Main Logic ---
 def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_interactive=False):
+    clear_screen()
     ips = load_ips(ip_file)
     if not ips:
         print_boxed([f"No IPs found in {ip_file}"], 'red')
@@ -205,23 +240,33 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
     best_port = None
     best_latency = None
     scan_rows = []
-    for ip in progress_bar(random.sample(ips, min(count, len(ips))), total=min(count, len(ips)), desc="Scanning", color='magenta'):
-        ports = MAIN_PORTS[:]
-        random.shuffle(ports)
-        found = False
-        for port in ports:
-            latency = ping_ip(ip, port=port)
-            if latency is not None:
-                scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
-                print(c(f"{ip}:{port} - {latency:.1f} ms", 'green'))
-                if best_latency is None or latency < best_latency:
-                    best_ip, best_port, best_latency = ip, port, latency
-                found = True
-                break
-        if not found:
-            scan_rows.append([ip, '-', "timeout", "FAIL"])
-            print(c(f"{ip} - timeout", 'red'))
-    print(tabulate(scan_rows, headers=["IP", "Port", "Latency(ms)", "Status"], tablefmt="fancy_grid"))
+    spinner = Spinner("Scanning IPs and ports")
+    spinner.start()
+    try:
+        for ip in random.sample(ips, min(count, len(ips))):
+            ports = MAIN_PORTS[:]
+            random.shuffle(ports)
+            found = False
+            for port in ports:
+                latency = ping_ip(ip, port=port)
+                if latency is not None:
+                    scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
+                    if best_latency is None or latency < best_latency:
+                        best_ip, best_port, best_latency = ip, port, latency
+                    found = True
+                    break
+            if not found:
+                scan_rows.append([ip, '-', "timeout", "FAIL"])
+    finally:
+        spinner.stop()
+    # Sort by latency (lowest first, timeouts last)
+    def latency_key(row):
+        try:
+            return float(row[2])
+        except:
+            return float('inf')
+    scan_rows_sorted = sorted(scan_rows, key=latency_key)
+    print(tabulate(scan_rows_sorted, headers=["IP", "Port", "Latency(ms)", "Status"], tablefmt="fancy_grid"))
     if not best_ip:
         print_boxed(["No reachable IP found."], 'red')
         return
@@ -231,10 +276,10 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
         if answer not in ["y", "yes", "1"]:
             print_boxed(["Config generation skipped by user."], 'yellow')
             return
+    clear_screen()
     Address_key, private_key, reserved = get_hiddify_keys()
     config_text = build_hiddify_config(best_ip, best_port, Address_key, private_key, reserved)
-    print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="], 'cyan')
-    print(c(config_text, 'white'))
+    print_boxed([f"Config saved as file: {filename}"], 'yellow')
     is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
     filename = output_name or (choose_filename('warp_hiddify_config.txt') if not non_interactive else 'warp_hiddify_config.txt')
     save_config(config_text, is_termux, filename)
@@ -242,9 +287,10 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
         save_log = input(c("Do you want to save the scan log as CSV? [y/N]: ", 'yellow')).strip().lower()
         if save_log in ["y", "yes", "1"]:
             log_name = os.path.splitext(filename)[0] + "_scanlog.csv"
-            save_scan_log(scan_rows, is_termux, log_name)
+            save_scan_log(scan_rows_sorted, is_termux, log_name)
     if not non_interactive:
         input(c("Press Enter to exit...", 'magenta'))
+        clear_screen()
 
 # --- CLI and Entry Point ---
 def print_help():
@@ -268,43 +314,50 @@ If no arguments are given, interactive mode will be used.
     print(help_text)
 
 def main():
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument('--ipv4', action='store_true')
-    parser.add_argument('--ipv6', action='store_true')
-    parser.add_argument('--count', type=int, default=20)
-    parser.add_argument('--output', type=str)
-    parser.add_argument('--no-color', action='store_true')
-    parser.add_argument('--help', action='store_true')
-    args, unknown = parser.parse_known_args()
+    while True:
+        clear_screen()
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('--ipv4', action='store_true')
+        parser.add_argument('--ipv6', action='store_true')
+        parser.add_argument('--count', type=int, default=20)
+        parser.add_argument('--output', type=str)
+        parser.add_argument('--no-color', action='store_true')
+        parser.add_argument('--help', action='store_true')
+        args, unknown = parser.parse_known_args()
 
-    if args.help:
-        print_help()
-        return
-
-    non_interactive = any([
-        args.ipv4, args.ipv6, args.count != 20, args.output, args.no_color
-    ])
-
-    if non_interactive:
-        banner()
-        ip_file = 'ips-v4.txt' if args.ipv4 or not args.ipv6 else 'ips-v6.txt'
-        scan_and_generate(ip_file, count=args.count, output_name=args.output, no_color=args.no_color, non_interactive=True)
-    else:
-        banner()
-        print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
-        choice = input(c("Enter your choice: ", 'yellow')).strip()
-        if choice == "1":
-            ip_file = "ips-v4.txt"
-        elif choice == "2":
-            ip_file = "ips-v6.txt"
-        else:
-            print(c("Goodbye!", 'cyan'))
+        if args.help:
+            print_help()
             return
-        try:
-            count = int(input(c("How many IPs to scan? (default 20): ", 'yellow')).strip() or "20")
-        except Exception:
-            count = 20
-        scan_and_generate(ip_file, count=count)
+
+        non_interactive = any([
+            args.ipv4, args.ipv6, args.count != 20, args.output, args.no_color
+        ])
+
+        if non_interactive:
+            banner()
+            ip_file = 'ips-v4.txt' if args.ipv4 or not args.ipv6 else 'ips-v6.txt'
+            scan_and_generate(ip_file, count=args.count, output_name=args.output, no_color=args.no_color, non_interactive=True)
+            break
+        else:
+            banner()
+            print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
+            choice = input(c("Enter your choice: ", 'yellow')).strip()
+            if choice == "1":
+                ip_file = "ips-v4.txt"
+            elif choice == "2":
+                ip_file = "ips-v6.txt"
+            elif choice == "0":
+                print(c("Goodbye!", 'cyan'))
+                clear_screen()
+                return
+            else:
+                continue
+            try:
+                count = int(input(c("How many IPs to scan? (default 20): ", 'yellow')).strip() or "20")
+            except Exception:
+                count = 20
+            scan_and_generate(ip_file, count=count)
+            break
 
 if __name__ == '__main__':
     main() 
