@@ -195,24 +195,16 @@ def show_results_boxed(results):
     clear_screen()
     COLORS = ['\033[92m', '\033[93m', '\033[94m', '\033[91m', '\033[95m', '\033[96m', '\033[90m']
     RESET = '\033[0m'
-    # ابتدا سرعت دانلود را برای هر آی‌پی تست کن
-    for b in results:
-        b['download_speed'] = test_download_speed(b['ip'], b['best']['port']) if b['best'] else 'N/A'
-        try:
-            b['download_speed_val'] = float(b['download_speed'].split()[0]) if b['download_speed'] != 'N/A' else 0
-        except Exception:
-            b['download_speed_val'] = 0
-    # مرتب‌سازی بر اساس کمترین ICMP Ping و سپس بیشترین سرعت دانلود
+    # مرتب‌سازی بر اساس کمترین ICMP Ping
     results_sorted = sorted(
         (b for b in results if b['best'] and b.get('icmp_latency')),
-        key=lambda x: (x['icmp_latency'], -x['download_speed_val'])
+        key=lambda x: x['icmp_latency']
     )
-    lines = ["--- Best IPs (sorted by ICMP Ping & Download Speed) ---"]
+    lines = ["--- Best IPs (sorted by ICMP Ping) ---"]
     for idx, b in enumerate(results_sorted[:10]):
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
-        speed = b['download_speed']
-        line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str} | Download: {speed}"
+        line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}"
         color = COLORS[idx % len(COLORS)]
         lines.append(f"{color}{line}{RESET}")
     print_boxed(lines)
@@ -360,45 +352,6 @@ def scan_ip_random_ports(ip, n_random_ports):
         'org': org,
         'icmp_latency': icmp_latency
     }
-
-def test_download_speed(ip, port):
-    try:
-        url = f'http://{ip}:{port}/speedtest/random4000x4000.jpg'
-        start = time.time()
-        r = requests.get(url, timeout=3, stream=True)
-        total = 0
-        for chunk in r.iter_content(1024):
-            total += len(chunk)
-            if total > 1024*1024:  # فقط 1MB دانلود کن
-                break
-        elapsed = time.time() - start
-        speed_mbps = (total * 8) / (elapsed * 1_000_000)
-        return f'{speed_mbps:.2f} Mbps'
-    except Exception:
-        return 'N/A'
-
-def show_results_boxed(results):
-    clear_screen()
-    GREEN = '\033[92m'
-    RESET = '\033[0m'
-    # مرتب‌سازی بر اساس کمترین ICMP Ping
-    results_sorted = sorted(
-        (b for b in results if b['best'] and b.get('icmp_latency')),
-        key=lambda x: x['icmp_latency']
-    )
-    lines = ["--- Best IPs (sorted by ICMP Ping) ---"]
-    for b in results_sorted[:10]:
-        icmp_lat = b.get('icmp_latency')
-        icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
-        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}")
-    print(GREEN, end='')
-    print_boxed(lines)
-    print(RESET, end='')
-    # تست سرعت فقط برای بهترین آی‌پی
-    if results_sorted:
-        best = results_sorted[0]
-        speed = test_download_speed(best['ip'], best['best']['port'])
-        print_boxed([f"Download speed for {best['ip']}:{best['best']['port']} : {speed}"])
 
 if icmp_ping is None:
     print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
