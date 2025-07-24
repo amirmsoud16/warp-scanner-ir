@@ -225,18 +225,14 @@ def scan_and_generate(ip_file, count=20, output_name=None, no_color=False, non_i
     spinner.start()
     try:
         for ip in random.sample(ips, min(count, len(ips))):
-            ports = MAIN_PORTS[:]
-            random.shuffle(ports)
-            found = False
-            for port in ports:
-                latency = ping_ip(ip, port=port)
-                if latency is not None:
-                    scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
-                    if best_latency is None or latency < best_latency:
-                        best_ip, best_port, best_latency = ip, port, latency
-                    found = True
-                    break
-            if not found:
+            # انتخاب پورت تصادفی بین 900 تا 20000 برای هر آی‌پی
+            port = random.randint(900, 20000)
+            latency = ping_ip(ip, port=port)
+            if latency is not None:
+                scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
+                if best_latency is None or latency < best_latency:
+                    best_ip, best_port, best_latency = ip, port, latency
+            else:
                 scan_rows.append([ip, '-', "timeout", "FAIL"])
     finally:
         spinner.stop()
