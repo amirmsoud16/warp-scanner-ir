@@ -23,6 +23,7 @@ import base64
 import secrets
 import threading
 import itertools
+import os
 
 # Settings
 IPV4_FILE = 'ips-v4.txt'
@@ -43,7 +44,11 @@ def print_boxed(text_lines):
         print("│ " + line.ljust(width - 3) + "│")
     print("└" + "─" * (width - 2) + "┘\n")
 
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 def main_menu():
+    clear_screen()
     menu_lines = [
         "   Warp Anycast IP Scanner   ",
         "============================",
@@ -299,14 +304,17 @@ def main():
     while True:
         choice = main_menu()
         if choice == '0':
+            clear_screen()
             print_boxed(["Exiting. Good luck!"])
             break
         elif choice in ['1', '2']:
+            clear_screen()
             my_country, my_city, my_ip = get_my_location()
             print_boxed([f"Your Internet Location:", f"Country: {my_country}", f"City: {my_city}", f"IP: {my_ip}"])
             start = input("Start scanning? [Y/n]: ").strip().lower()
             if start not in ["", "y", "yes"]:
                 continue
+            clear_screen()
             filename = IPV4_FILE if choice == '1' else IPV6_FILE
             n_ip = IPS_PER_RANGE
             n_port = PORTS_RANDOM_COUNT
