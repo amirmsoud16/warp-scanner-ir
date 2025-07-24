@@ -79,13 +79,15 @@ def main_menu():
 # --- GeoIP ---
 def get_my_location():
     try:
-        r = requests.get('http://ip-api.com/json/', timeout=3)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get('country', ''), data.get('city', ''), data.get('query', '')
+        r = requests.get('http://ip-api.com/json/', timeout=5)
+        data = r.json()
+        return {
+            'ip': data.get('query', ''),
+            'country': data.get('country', ''),
+            'city': data.get('city', '')
+        }
     except Exception:
-        pass
-    return '', '', ''
+        return {'ip': '', 'country': '', 'city': ''}
 
 def geoip_lookup(ip):
     try:
