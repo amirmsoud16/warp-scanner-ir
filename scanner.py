@@ -189,17 +189,16 @@ def real_icmp_ping(ip, timeout=TIMEOUT):
 def scan_ip_optimized(ip, n_random_ports):
     main_ports = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
     random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(1000, 60000), n_random_ports)]
-    best, results = test_ip_ports_optimized(ip, main_ports, random_ports)
-    country, city, org = geoip_lookup(ip)
+    best, port_results = test_ip_ports_optimized(ip, main_ports, random_ports)
     icmp_latency = real_icmp_ping(ip)
+    country, city, org = geoip_lookup(ip)
     return {
         'ip': ip,
-        'results': results,
         'best': best,
+        'icmp_latency': icmp_latency,
         'country': country,
         'city': city,
-        'org': org,
-        'icmp_latency': icmp_latency
+        # سایر فیلدها در صورت نیاز
     }
 
 def test_download_speed(ip, port):
@@ -259,6 +258,8 @@ def show_wireguard_config(ip, port):
     print(wg_uri)
     print("\n\033[93m==== wgcf:// (for v2rayN) ====" + "\033[0m")
     print(v2rayn_uri)
+    # ذخیره کانفیک
+    saved_name = None
     while True:
         name = input("Enter a name to save this config (or leave empty to skip): ").strip()
         if name == "":
@@ -271,25 +272,89 @@ def show_wireguard_config(ip, port):
         with open(filename, "w") as f:
             f.write(config)
         print(f"Config saved as configs/{name}.conf")
+        saved_name = name
         break
+    # پس از ذخیره، منوی مشاهده کانفیک
+    if saved_name:
+        while True:
+            see = input("Do you want to view a config? [y/n]: ").strip().lower()
+            if see in ["y", "yes"]:
+                show_saved_configs(view_only=True)
+                break
+            elif see in ["n", "no", ""]:
+                break
+            else:
+                print("Please enter y or n.")
     print("\nPress Enter to return to menu...")
     input()
 
-def show_saved_configs():
+def show_saved_configs(view_only=False):
     clear_screen()
     print_boxed(["Saved WireGuard Configs"])
     configs_dir = "configs"
     if not os.path.isdir(configs_dir):
         print("No configs found.")
-    else:
-        files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
-        if not files:
-            print("No configs found.")
+        print("\nPress Enter to return to menu...")
+        input()
+        return
+    files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
+    if not files:
+        print("No configs found.")
+        print("\nPress Enter to return to menu...")
+        input()
+        return
+    for idx, fname in enumerate(files, 1):
+        print(f"{idx}- {os.path.splitext(fname)[0]}")
+    if view_only:
+        try:
+            num = int(input("Enter config number to view: ").strip())
+            if 1 <= num <= len(files):
+                with open(os.path.join(configs_dir, files[num-1]), "r") as f:
+                    print("\n\033[96m==== Config Content ====" + "\033[0m")
+                    print(f.read())
+            else:
+                print("Invalid number.")
+        except Exception:
+            print("Invalid input.")
+        print("\nPress Enter to return to menu...")
+        input()
+        return
+    # منوی کوچک برای مشاهده/حذف/خروج
+    while True:
+        print("\n[1] View config\n[2] Delete config\n[0] Exit")
+        action = input("Enter your choice: ").strip()
+        if action == "1":
+            try:
+                num = int(input("Enter config number to view: ").strip())
+                if 1 <= num <= len(files):
+                    with open(os.path.join(configs_dir, files[num-1]), "r") as f:
+                        print("\n\033[96m==== Config Content ====" + "\033[0m")
+                        print(f.read())
+                else:
+                    print("Invalid number.")
+            except Exception:
+                print("Invalid input.")
+            print("\nPress Enter to return to menu...")
+            input()
+        elif action == "2":
+            try:
+                num = int(input("Enter config number to delete: ").strip())
+                if 1 <= num <= len(files):
+                    os.remove(os.path.join(configs_dir, files[num-1]))
+                    print("Config deleted.")
+                    files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
+                    for idx, fname in enumerate(files, 1):
+                        print(f"{idx}- {os.path.splitext(fname)[0]}")
+                else:
+                    print("Invalid number.")
+            except Exception:
+                print("Invalid input.")
+            print("\nPress Enter to return to menu...")
+            input()
+        elif action == "0":
+            break
         else:
-            for idx, fname in enumerate(files, 1):
-                print(f"{idx}- {os.path.splitext(fname)[0]}")
-    print("\nPress Enter to return to menu...")
-    input()
+            print("Invalid choice.")
 
 def print_progress(current, total, message="Progress"):
     percent = int((current / total) * 100) if total else 100
