@@ -52,6 +52,9 @@ pip3 install --user requests urllib3 colorama tqdm tabulate
 # Ensure tabulate is installed system-wide as well (for some environments)
 pip3 install tabulate
 
+echo "Installing wireguard-tools (required for key generation)..."
+apt update && apt install -y wireguard-tools
+
 # Download files
 for file in "${FILES[@]}"; do
     echo "Downloading $file ..."
