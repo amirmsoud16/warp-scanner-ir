@@ -326,6 +326,7 @@ def main():
             break
         else:
             while True:
+                clear_screen()
                 banner()
                 print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
                 choice = input(c("Enter your choice: ", 'yellow')).strip()
