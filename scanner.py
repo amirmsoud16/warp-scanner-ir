@@ -255,10 +255,10 @@ DNS = 8.8.8.8,8.8.4.4
 
 [Peer]
 PublicKey = {public_key}
-AllowedIPs = 0.0.0.0/0, ::/0
+AllowedIPs = 0.0.0.0/0
 Endpoint = {endpoint}
 PersistentKeepalive = 25'''
-    config_b64 = base64.urlsafe_b64encode(config.encode()).decode()
+    config_b64 = base64.b64encode(config.encode()).decode()
     wgcf_uri = f'wgcf://{config_b64}'
     print("\033[96m==== WireGuard Config ====" + "\033[0m")
     print(config)
@@ -438,22 +438,7 @@ if icmp_ping is None:
     print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
 
 def main():
-    while True:
-        choice = main_menu()
-        if choice == '0':
-            clear_screen()
-            print_boxed(["Exiting. Good luck!"])
-            break
-        elif choice in ['1', '2']:
-            clear_screen()
-            my_country, my_city, my_ip = get_my_location()
-            print_boxed([f"Your Internet Location:", f"Country: {my_country}", f"City: {my_city}", f"IP: {my_ip}"])
-            start = input("Start scanning? [Y/n]: ").strip().lower()
-            if start not in ["", "y", "yes"]:
-                continue
-            clear_screen()
-            filename = IPV4_FILE if choice == '1' else IPV6_FILE
-            do_scan(filename)
+    main_menu()
 
 if __name__ == '__main__':
     main() 
