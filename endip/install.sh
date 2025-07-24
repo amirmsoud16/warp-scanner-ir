@@ -8,6 +8,7 @@ blue='\033[0;34m'
 purple='\033[0;35m'
 cyan='\033[0;36m'
 rest='\033[0m'
+magenta='\033[0;35m'
 
 case "$(uname -m)" in
 x86_64 | x64 | amd64)
@@ -515,57 +516,50 @@ menu() {
 	clear
 	echo -e "${cyan}hydra${rest}"
 	echo ""
-echo -e "${blue}╔════════════════════╗${rest}"
-echo -e "${blue}║${yellow} Warp Endpoint Menu ${blue}║${rest}"
-echo -e "${blue}╠════════════════════╣${rest}"
-echo -e "${blue}║ ${yellow}1${blue}. Preferred IPV4   ║${rest}"
-echo -e "${blue}║ ${yellow}2${blue}. Preferred IPV6   ║${rest}"
-echo -e "${blue}║ ${yellow}3${blue}. Free Config Wgcf ║${rest}"
-echo -e "${blue}║ ${yellow}4${blue}. Install wire-g   ║${rest}"
-echo -e "${blue}║ ${yellow}5${blue}. License Cloner   ║${rest}"
-echo -e "${blue}║ ${yellow}0${blue}. Exit             ║${rest}"
-echo -e "${blue}╚════════════════════╝${rest}"
+	echo -e "${magenta}╭────────────────────────────╮${rest}"
+	echo -e "${magenta}│${cyan}    Warp Endpoint Menu     ${magenta}│${rest}"
+	echo -e "${magenta}├────────────────────────────┤${rest}"
+	echo -e "${magenta}│ ${cyan}1${magenta}. Preferred IPV4         │${rest}"
+	echo -e "${magenta}│ ${cyan}2${magenta}. Preferred IPV6         │${rest}"
+	echo -e "${magenta}│ ${cyan}3${magenta}. Free Config Wgcf       │${rest}"
+	echo -e "${magenta}│ ${cyan}4${magenta}. Install wire-g         │${rest}"
+	echo -e "${magenta}│ ${cyan}5${magenta}. License Cloner         │${rest}"
+	echo -e "${magenta}│ ${cyan}0${magenta}. Exit                   │${rest}"
+	echo -e "${magenta}╰────────────────────────────╯${rest}"
+	echo -en "${cyan}Enter your choice: ${rest}"
 	read -r choice
 	case "$choice" in
-	1)
-		echo -e "${purple}*********************${rest}"
-		cfwarpIP
-		endipv4
-		endipresult
-		Endip_v4
-		menu
-		;;
-	2)
-		echo -e "${purple}*********************${rest}"
-		cfwarpIP
-		endipv6
-		endipresult
-		Endip_v6
-		menu
-		;;
-	3)
-		generate
-		menu
-		;;
-	4)
-		wire-g
-		menu
-		;;
-	5)
-		cloner
-		menu
-		;;
-	0)
-		echo -e "${purple}*********************${rest}"
-		echo -e "${cyan}By ${rest}"
-		exit
-		;;
-	*)
-		echo -e "${yellow}********************${rest}"
-		echo "Invalid choice. Please select a valid option."
-		menu
-		;;
+		1)
+			cfwarpIP
+			endipv4
+			endipresult
+			menu
+			;;
+		2)
+			cfwarpIP
+			endipv6
+			endipresult
+			menu
+			;;
+		3)
+			generate
+			menu
+			;;
+		4)
+			wire-g
+			menu
+			;;
+		5)
+			cloner
+			menu
+			;;
+		0)
+			echo -e "${cyan}Bye!${rest}"
+			exit
+			;;
+		*)
+			echo -e "${yellow}Invalid choice. Please select a valid option.${rest}"
+			menu
+			;;
 	esac
 }
-
-menu
