@@ -64,56 +64,12 @@ if ! command -v pip3 &> /dev/null; then
     fi
 fi
 
-# Install Python dependencies (requests, ping3)
+# Install Python dependencies (requests, urllib3, ping3)
+echo "[+] Installing required Python packages: requests, urllib3, ping3 ..."
 if [ "$IS_TERMUX" = 1 ]; then
-    pip3 install requests ping3
+    pip3 install requests urllib3 ping3
 else
-    pip3 install --user requests ping3
-fi
-
-# Check and install wgcf if needed
-if ! command -v wgcf &> /dev/null; then
-    echo "[+] wgcf not found. Attempting to install..."
-    if [ "$IS_TERMUX" = 1 ]; then
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "aarch64" ]; then ARCH=arm64; fi
-        WGCF_URL="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_${ARCH}_linux.tar.gz"
-        mkdir -p $HOME/bin
-        cd $HOME/bin
-        echo "[+] Trying to download prebuilt wgcf binary..."
-        if curl -LO "$WGCF_URL" && tar xzf wgcf_${ARCH}_linux.tar.gz && chmod +x wgcf; then
-            rm -f wgcf_${ARCH}_linux.tar.gz
-            echo "[+] wgcf binary installed in ~/bin."
-        else
-            echo "[!] Prebuilt binary not available, building from source..."
-            pkg install -y golang git
-            export GOPATH=$HOME/go
-            export PATH=$PATH:$GOPATH/bin
-            git clone https://github.com/ViRb3/wgcf.git
-            cd wgcf
-            go build -o $HOME/bin/wgcf
-            cd ..
-            rm -rf wgcf
-            chmod +x $HOME/bin/wgcf
-            echo "[+] wgcf built from source and installed in ~/bin."
-        fi
-        export PATH="$HOME/bin:$PATH"
-        cd "$WARPS_DIR"
-    else
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then ARCH=amd64; fi
-        if [ "$ARCH" = "aarch64" ]; then ARCH=arm64; fi
-        WGCF_URL="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_${ARCH}_linux.tar.gz"
-        mkdir -p "$HOME/bin"
-        cd "$HOME/bin"
-        curl -LO "$WGCF_URL"
-        tar xzf wgcf_${ARCH}_linux.tar.gz
-        chmod +x wgcf
-        rm wgcf_${ARCH}_linux.tar.gz
-        echo "[+] wgcf installed in $HOME/bin."
-        export PATH="$HOME/bin:$PATH"
-        cd "$WARPS_DIR"
-    fi
+    pip3 install --user requests urllib3 ping3
 fi
 
 # Download files
