@@ -166,7 +166,7 @@ generate() {
 				pkg install curl -y
 			fi
 			if [[ -n $cpu ]]; then
-				curl -o "$PREFIX/bin/wgcf" -L "https://raw.githubusercontent.com/Ptechgithub/warp/main/endip/wgcf"
+				curl -o "$PREFIX/bin/wgcf" -L "https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/endip/wgcf"
 				chmod +x "$PREFIX/bin/wgcf"
 			fi
 		else
@@ -304,7 +304,7 @@ wire-g() {
 				apt install wireguard-tools jq xz-utils bzip2 -y
 			fi
 		fi
-		curl -o $PREFIX/bin/wire-g https://raw.githubusercontent.com/Ptechgithub/warp/main/wire-g.sh
+		curl -o $PREFIX/bin/wire-g https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/wire-g.sh
 		chmod +x $PREFIX/bin/wire-g
 		echo ""
 		echo -e "${purple}*********************${rest}"
