@@ -194,11 +194,9 @@ def scan_ip_optimized(ip, n_random_ports):
 def show_results_boxed(results):
     lines = ["--- Best IPs ---"]
     for b in results:
-        lat = b['best']['latency']
-        lat_str = f"{lat:.0f} ms" if lat and lat > 0 else "N/A"
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
-        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | Port Ping: {lat_str} | ICMP Ping: {icmp_str}")
+        lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}")
     print_boxed(lines)
 
 def ask_wireguard_config(ip, port):
@@ -269,29 +267,42 @@ class Spinner:
         self.stop_running = True
         self.thread.join()
 
-def do_scan(filename, n_ip, n_port, my_country):
+def do_scan(filename, my_country):
     cidrs = load_cidr_list(filename)
-    ips = []
-    total_cidrs = len(cidrs)
-    for idx, cidr in enumerate(cidrs, 1):
-        for _ in range(n_ip):
-            try:
-                ip = random_ip_from_cidr(cidr)
-                ips.append(ip)
-                if len(ips) >= 100:
-                    break
-            except Exception:
-                continue
-        print_progress(idx, total_cidrs, "Building IP list")
-        if len(ips) >= 100:
+    all_ips = []
+    for cidr in cidrs:
+        net = ipaddress.ip_network(cidr, strict=False)
+        for ip in net.hosts():
+            all_ips.append(str(ip))
+    total_ips = len(all_ips)
+    print_boxed([f"Total available IPs: {total_ips}"])
+    while True:
+        try:
+            n_ip = int(input(f"How many IPs do you want to test? (1-{total_ips}): ").strip())
+            if 1 <= n_ip <= total_ips:
+                break
+        except Exception:
+            pass
+        print("Please enter a valid number.")
+    while True:
+        port_mode = input("Test only main ports (2408/UDP, 443/TCP/UDP)? [Y/n]: ").strip().lower()
+        if port_mode in ["", "y", "yes"]:
+            use_random_ports = False
             break
-    sys.stdout.write("\n")
-    print(f'Total IPs to scan: {len(ips)}')
-    # Sequential scan (no threading)
+        elif port_mode in ["n", "no"]:
+            use_random_ports = True
+            break
+        else:
+            print("Please enter Y or N.")
+    selected_ips = random.sample(all_ips, n_ip)
+    print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
-    total = len(ips)
-    for idx, ip in enumerate(ips, 1):
-        res = scan_ip_optimized(ip, n_port)
+    total = len(selected_ips)
+    for idx, ip in enumerate(selected_ips, 1):
+        if use_random_ports:
+            res = scan_ip_optimized(ip, PORTS_RANDOM_COUNT)
+        else:
+            res = scan_ip_optimized(ip, 0)
         if res['best']:
             results.append(res)
         print_progress(idx, total, "Scanning IPs and ports")
@@ -324,9 +335,7 @@ def main():
                 continue
             clear_screen()
             filename = IPV4_FILE if choice == '1' else IPV6_FILE
-            n_ip = IPS_PER_RANGE
-            n_port = PORTS_RANDOM_COUNT
-            do_scan(filename, n_ip, n_port, my_country)
+            do_scan(filename, my_country)
 
 if __name__ == '__main__':
     main() 
