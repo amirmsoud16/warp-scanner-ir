@@ -75,15 +75,30 @@ fi
 if ! command -v wgcf &> /dev/null; then
     echo "[+] wgcf not found. Attempting to install..."
     if [ "$IS_TERMUX" = 1 ]; then
-        pkg install -y golang
-        export GOPATH=$HOME/go
-        export PATH=$PATH:$GOPATH/bin
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "aarch64" ]; then ARCH=arm64; fi
+        WGCF_URL="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_${ARCH}_linux.tar.gz"
         mkdir -p $HOME/bin
-        mkdir -p $GOPATH/bin
-        go install github.com/ViRb3/wgcf@latest
-        cp $GOPATH/bin/wgcf $HOME/bin/wgcf
-        chmod +x $HOME/bin/wgcf
-        echo "[+] wgcf installed in ~/bin."
+        cd $HOME/bin
+        echo "[+] Trying to download prebuilt wgcf binary..."
+        if curl -LO "$WGCF_URL" && tar xzf wgcf_${ARCH}_linux.tar.gz && chmod +x wgcf; then
+            rm -f wgcf_${ARCH}_linux.tar.gz
+            echo "[+] wgcf binary installed in ~/bin."
+        else
+            echo "[!] Prebuilt binary not available, building from source..."
+            pkg install -y golang git
+            export GOPATH=$HOME/go
+            export PATH=$PATH:$GOPATH/bin
+            git clone https://github.com/ViRb3/wgcf.git
+            cd wgcf
+            go build -o $HOME/bin/wgcf
+            cd ..
+            rm -rf wgcf
+            chmod +x $HOME/bin/wgcf
+            echo "[+] wgcf built from source and installed in ~/bin."
+        fi
+        export PATH="$HOME/bin:$PATH"
+        cd "$WARPS_DIR"
     else
         ARCH=$(uname -m)
         if [ "$ARCH" = "x86_64" ]; then ARCH=amd64; fi
