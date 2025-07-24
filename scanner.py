@@ -53,19 +53,28 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def main_menu():
-    clear_screen()
-    menu_lines = [
-        "   Warp Anycast IP Scanner   ",
-        "============================",
-        " 1. Scan Warp IPv4 IPs",
-        " 2. Scan Warp IPv6 IPs",
-        " 0. Exit"
-    ]
-    print_boxed(menu_lines)
     while True:
-        choice = input('Your choice: ').strip()
-        if choice in ['1', '2', '0']:
-            return choice
+        clear_screen()
+        print_boxed([
+            " WARP SCANNER MENU ",
+            "1. Scan IPv4",
+            "2. Scan IPv6",
+            "3. Show saved configs",
+            "0. Exit"
+        ])
+        choice = input("Enter your choice: ").strip()
+        if choice == "1":
+            do_scan(IPV4_FILE, get_my_location()['country'])
+        elif choice == "2":
+            do_scan(IPV6_FILE, get_my_location()['country'])
+        elif choice == "3":
+            show_saved_configs()
+        elif choice == "0":
+            print("Goodbye!")
+            break
+        else:
+            print("Invalid choice. Press Enter...")
+            input()
 
 # --- GeoIP ---
 def get_my_location():
@@ -238,22 +247,45 @@ def show_wireguard_config(ip, port):
     import base64
     public_key = '...'  # می‌توانید کلید پابلیک Warp را اینجا قرار دهید
     endpoint = f'{ip}:{port}'
-    config = f'''[Interface]
-PrivateKey = {generate_private_key()}
-Address = 172.16.0.2/32, 2606:4700:110:8765::2/128
-DNS = 1.1.1.1
-
-[Peer]
-PublicKey = {public_key}
-AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = {endpoint}
-PersistentKeepalive = 25'''
+    config = f'''[Interface]\nPrivateKey = {generate_private_key()}\nAddress = 172.16.0.2/32, 2606:4700:110:8765::2/128\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = {public_key}\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = {endpoint}\nPersistentKeepalive = 25'''
     config_b64 = base64.urlsafe_b64encode(config.encode()).decode()
     wg_uri = f'wg://{config_b64}'
+    v2rayn_uri = f'wgcf://{config_b64}'
     print("\033[96m==== WireGuard Config ====" + "\033[0m")
     print(config)
     print("\n\033[92m==== wg:// URI ====" + "\033[0m")
     print(wg_uri)
+    print("\n\033[93m==== wgcf:// (for v2rayN) ====" + "\033[0m")
+    print(v2rayn_uri)
+    while True:
+        name = input("Enter a name to save this config (or leave empty to skip): ").strip()
+        if name == "":
+            break
+        os.makedirs("configs", exist_ok=True)
+        filename = os.path.join("configs", f"{name}.conf")
+        if os.path.exists(filename):
+            print("A config with this name already exists. Choose another name.")
+            continue
+        with open(filename, "w") as f:
+            f.write(config)
+        print(f"Config saved as configs/{name}.conf")
+        break
+    print("\nPress Enter to return to menu...")
+    input()
+
+def show_saved_configs():
+    clear_screen()
+    print_boxed(["Saved WireGuard Configs"])
+    configs_dir = "configs"
+    if not os.path.isdir(configs_dir):
+        print("No configs found.")
+    else:
+        files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
+        if not files:
+            print("No configs found.")
+        else:
+            for idx, fname in enumerate(files, 1):
+                print(f"{idx}- {os.path.splitext(fname)[0]}")
     print("\nPress Enter to return to menu...")
     input()
 
