@@ -191,7 +191,23 @@ def scan_ip_optimized(ip, n_random_ports):
         'icmp_latency': icmp_latency
     }
 
-def show_results_boxed(results):
+def test_download_speed(ip, port):
+    try:
+        url = f'http://{ip}:{port}/speedtest/random4000x4000.jpg'
+        start = time.time()
+        r = requests.get(url, timeout=3, stream=True)
+        total = 0
+        for chunk in r.iter_content(1024):
+            total += len(chunk)
+            if total > 100*1024:  # فقط 100KB دانلود کن
+                break
+        elapsed = time.time() - start
+        speed_mbps = (total * 8) / (elapsed * 1_000_000)
+        return f'{speed_mbps:.2f} Mbps'
+    except Exception:
+        return 'N/A'
+
+def show_results_boxed(results, show_download=False):
     clear_screen()
     COLORS = ['\033[92m', '\033[93m', '\033[94m', '\033[91m', '\033[95m', '\033[96m', '\033[90m']
     RESET = '\033[0m'
@@ -205,6 +221,9 @@ def show_results_boxed(results):
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
         line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}"
+        if show_download:
+            speed = test_download_speed(b['ip'], b['best']['port'])
+            line += f" | Download: {speed}"
         color = COLORS[idx % len(COLORS)]
         lines.append(f"{color}{line}{RESET}")
     print_boxed(lines)
@@ -293,6 +312,8 @@ class Spinner:
         self.stop_running = True
         self.thread.join()
 
+# تغییر در do_scan برای استفاده از اولین پورت باز
+
 def do_scan(filename, my_country):
     cidrs = load_cidr_list(filename)
     all_ips = []
@@ -303,55 +324,40 @@ def do_scan(filename, my_country):
     total_ips = len(all_ips)
     print_boxed([f"Total available IPs: {total_ips}"])
     n_ip = 100
+    # سوال تست دانلود و پینگ
     while True:
-        print("Which ports to test?")
-        print("  [1] Main ports (2408/UDP, 443/TCP/UDP)")
-        print("  [2] 100 random ports (900-10000)")
-        port_mode = input("Enter your choice [1/2]: ").strip()
-        if port_mode in ["1", "main", "m", ""]:
-            use_random_ports = False
+        print("Which test do you want to run?")
+        print("  [1] ICMP Ping only")
+        print("  [2] ICMP Ping + Download speed")
+        test_mode = input("Enter your choice [1/2]: ").strip()
+        if test_mode in ["1", "ping", "p", ""]:
+            show_download = False
             break
-        elif port_mode in ["2", "random", "r"]:
-            use_random_ports = True
+        elif test_mode in ["2", "download", "d"]:
+            show_download = True
             break
         else:
-            print("Please enter 1 for main or 2 for random.")
+            print("Please enter 1 for ping only or 2 for ping + download.")
     selected_ips = random.sample(all_ips, n_ip)
     print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
     total = len(selected_ips)
     for idx, ip in enumerate(selected_ips, 1):
-        if use_random_ports:
-            res = scan_ip_random_ports(ip, 100)
-        else:
-            res = scan_ip_optimized(ip, 0)
+        res = scan_ip_optimized(ip, 0)  # فقط پورت‌های اصلی
         if res['best']:
             results.append(res)
         print_progress(idx, total, "Scanning IPs and ports")
-    bests = sorted((r for r in results if r['best']), key=lambda x: x['best']['latency'])[:10]
-    show_results_boxed(bests)
-    if bests:
-        if ask_wireguard_config(bests[0]['ip'], bests[0]['best']['port']):
-            show_wireguard_config(bests[0]['ip'], bests[0]['best']['port'])
-        else:
-            print_boxed(["Config not generated."])
+    show_results_boxed(results, show_download=show_download)
+    # مرتب‌سازی بر اساس کمترین ICMP Ping
+    results_sorted = sorted(
+        (b for b in results if b['best'] and b.get('icmp_latency')),
+        key=lambda x: x['icmp_latency']
+    )
+    if results_sorted:
+        best = results_sorted[0]
+        show_wireguard_config(best['ip'], best['best']['port'])
     else:
         print_boxed(["No suitable IP found."])
-
-def scan_ip_random_ports(ip, n_random_ports):
-    random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(900, 10001), n_random_ports)]
-    best, results = test_ip_ports_optimized(ip, [], random_ports)
-    country, city, org = geoip_lookup(ip)
-    icmp_latency = real_icmp_ping(ip)
-    return {
-        'ip': ip,
-        'results': results,
-        'best': best,
-        'country': country,
-        'city': city,
-        'org': org,
-        'icmp_latency': icmp_latency
-    }
 
 if icmp_ping is None:
     print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
