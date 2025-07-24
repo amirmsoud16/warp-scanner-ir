@@ -101,6 +101,36 @@ else
     echo "[!] Unknown OS. Clipboard support may not work."
 fi
 
+# Check and install speedtest-cli if needed (for download speed test)
+if command -v speedtest &> /dev/null; then
+    echo "[+] speedtest-cli is already installed. Skipping."
+elif command -v apt &> /dev/null; then
+    echo "[+] Installing speedtest-cli for download speed test..."
+    sudo apt update && sudo apt install -y speedtest-cli
+elif command -v yum &> /dev/null; then
+    echo "[+] Installing speedtest-cli for download speed test..."
+    sudo yum install -y speedtest-cli
+elif command -v dnf &> /dev/null; then
+    echo "[+] Installing speedtest-cli for download speed test..."
+    sudo dnf install -y speedtest-cli
+elif command -v pacman &> /dev/null; then
+    echo "[+] Installing speedtest-cli for download speed test..."
+    sudo pacman -Sy --noconfirm speedtest-cli
+elif grep -qi termux <<< "$PREFIX"; then
+    if command -v speedtest &> /dev/null; then
+        echo "[+] speedtest-cli is already installed in Termux. Skipping."
+    else
+        echo "[+] Installing speedtest-cli in Termux..."
+        pkg install -y speedtest
+    fi
+elif [[ "$OS_TYPE" == *"darwin"* ]]; then
+    echo "[!] Please install speedtest-cli manually on macOS: brew install speedtest-cli"
+elif [[ "$OS_TYPE" == *"mingw"* || "$OS_TYPE" == *"msys"* || "$OS_TYPE" == *"cygwin"* ]]; then
+    echo "[!] Please install speedtest-cli manually on Windows: pip install speedtest-cli"
+else
+    echo "[!] Please install speedtest-cli manually for your OS."
+fi
+
 # Download project files
 echo "[+] Downloading project files from GitHub..."
 for file in "${FILES[@]}"; do
