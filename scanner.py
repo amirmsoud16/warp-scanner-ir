@@ -126,9 +126,12 @@ except ImportError:
     import base64
 
 def generate_wg_private_key():
-    private_key = PrivateKey.generate()
-    private_key_b64 = base64.b64encode(bytes(private_key)).decode()
-    return private_key_b64
+    try:
+        private_key = subprocess.check_output(['wg', 'genkey']).decode().strip()
+        return private_key
+    except Exception as e:
+        print("Error generating WireGuard private key:", e)
+        return None
 
 # --- Hiddify Config Generation ---
 def get_hiddify_keys():
