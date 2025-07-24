@@ -33,6 +33,25 @@ if ! command -v python3 &> /dev/null; then
         exit 1
     fi
 fi
+
+# Install pip3 if not present
+if ! command -v pip3 &> /dev/null; then
+    echo "[+] pip3 not found. Attempting to install..."
+    if command -v apt &> /dev/null; then
+        sudo apt update && sudo apt install -y python3-pip
+    elif command -v yum &> /dev/null; then
+        sudo yum install -y python3-pip
+    elif command -v dnf &> /dev/null; then
+        sudo dnf install -y python3-pip
+    elif command -v pacman &> /dev/null; then
+        sudo pacman -Sy --noconfirm python-pip
+    elif command -v pkg &> /dev/null; then
+        pkg install -y python-pip
+    else
+        echo "Please install pip3 manually."
+        exit 1
+    fi
+fi
 pip3 install --upgrade pip
 pip3 install requests ping3
 
