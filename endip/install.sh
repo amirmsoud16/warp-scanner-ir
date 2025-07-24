@@ -7,7 +7,6 @@ yellow='\033[0;33m'
 blue='\033[0;34m'
 purple='\033[0;35m'
 cyan='\033[0;36m'
-magenta='\033[0;35m'
 rest='\033[0m'
 
 case "$(uname -m)" in
