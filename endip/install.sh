@@ -32,7 +32,7 @@ cfwarpIP() {
 	if [[ ! -f "$PREFIX/bin/warpendpoint" ]]; then
 		echo "Downloading warpendpoint program"
 		if [[ -n $cpu ]]; then
-			curl -L -o warpendpoint -# --retry 2 https://raw.githubusercontent.com/Ptechgithub/warp/main/endip/$cpu
+			curl -L -o warpendpoint -# --retry 2 https://raw.githubusercontent.com/amirmsoud16/warp-scanner-ir/main/endip/$cpu
 			cp warpendpoint $PREFIX/bin
 			chmod +x $PREFIX/bin/warpendpoint
 		fi
