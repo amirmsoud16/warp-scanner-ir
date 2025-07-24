@@ -115,16 +115,6 @@ class Spinner:
         self.thread.join()
 
 # --- WireGuard Key Generation ---
-try:
-    from nacl.public import PrivateKey
-    import base64
-except ImportError:
-    import sys
-    import subprocess
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pynacl'])
-    from nacl.public import PrivateKey
-    import base64
-
 def generate_wg_private_key():
     try:
         private_key = subprocess.check_output(['wg', 'genkey']).decode().strip()
