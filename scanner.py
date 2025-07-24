@@ -247,7 +247,7 @@ def generate_private_key():
 def show_wireguard_config(ip, port):
     import base64
     import sys
-    import platform
+    import subprocess
     public_key = 'm+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE='
     endpoint = f'{ip}:{port}'
     config = f'''[Interface]
@@ -262,28 +262,38 @@ Endpoint = {endpoint}
 PersistentKeepalive = 25'''
     print("\033[96m==== WireGuard Config ====" + "\033[0m")
     print(config)
-    # ذخیره کانفیک فقط به صورت فایل conf
     while True:
         name = input("Enter a name to save this config (or leave empty to skip): ").strip()
         if name == "":
             break
-        # تشخیص ترماکس
-        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-        if is_termux:
-            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
-            if not os.path.isdir(save_dir):
-                # مسیر جایگزین برای دانلودها در ترماکس
-                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
-        else:
-            save_dir = os.path.dirname(os.path.abspath(__file__))
-        os.makedirs(save_dir, exist_ok=True)
-        filename = os.path.join(save_dir, f"{name}.conf")
+        # همیشه در configs ذخیره کن
+        os.makedirs("configs", exist_ok=True)
+        filename = os.path.join("configs", f"{name}.conf")
         if os.path.exists(filename):
             print("A config with this name already exists. Choose another name.")
             continue
         with open(filename, "w") as f:
             f.write(config)
         print(f"Config saved as {filename}")
+        # اگر ترماکس بود، اجازه دسترسی storage بگیرد و یک کپی هم در Downloads بگذارد
+        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+        if is_termux:
+            try:
+                print("[+] Requesting storage permission for Termux (if needed)...")
+                subprocess.run(["termux-setup-storage"], check=False)
+            except Exception:
+                pass
+            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+            if not os.path.isdir(save_dir):
+                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+                download_file = os.path.join(save_dir, f"{name}.conf")
+                with open(download_file, "w") as f:
+                    f.write(config)
+                print(f"Config also saved as {download_file}")
+            except Exception as e:
+                print(f"Could not save to Downloads: {e}")
         break
     print("\nPress Enter to return to menu...")
     input()
@@ -433,7 +443,7 @@ def do_scan(filename):
         print_progress(idx, total_cidrs, "Building IP list")
     sys.stdout.write("\n")
     print_boxed([f"Total available IPs: {len(all_ips)}"])
-    n_ip = 100  # تعداد IPهایی که تست می‌شوند
+    n_ip = 20  # تعداد IPهایی که تست می‌شوند
     selected_ips = random.sample(all_ips, n_ip)
     print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
