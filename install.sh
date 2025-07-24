@@ -48,7 +48,12 @@ if ! command -v pip3 &> /dev/null; then
     elif command -v pkg &> /dev/null; then
         pkg install -y python-pip
     else
-        echo "Please install pip3 manually."
+        echo "[+] Trying to install pip3 using get-pip.py ..."
+        curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py
+    fi
+    # Check again
+    if ! command -v pip3 &> /dev/null; then
+        echo "[!] pip3 installation failed. Please install pip3 manually."
         exit 1
     fi
 fi
@@ -69,8 +74,7 @@ done
 # Create launcher script in WARPS_DIR
 cat > "$WARPS_DIR/WARPS" <<EOF
 #!/bin/bash
-cd "\$HOME/WARPS"
-python3 scanner.py
+python3 "\$HOME/WARPS/scanner.py"
 EOF
 chmod +x "$WARPS_DIR/WARPS"
 
