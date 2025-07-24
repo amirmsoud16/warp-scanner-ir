@@ -249,13 +249,15 @@ class Spinner:
 def do_scan(filename, n_ip, n_port, my_country):
     cidrs = load_cidr_list(filename)
     ips = []
-    for cidr in cidrs:
+    total_cidrs = len(cidrs)
+    for idx, cidr in enumerate(cidrs, 1):
         for _ in range(n_ip):
             try:
                 ip = random_ip_from_cidr(cidr)
                 ips.append(ip)
             except Exception:
                 continue
+        print_progress(idx, total_cidrs, "Building IP list")
     print(f'Total IPs to scan: {len(ips)}')
     # Progress bar for scanning IPs and ports
     results = []
