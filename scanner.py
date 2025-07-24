@@ -160,7 +160,7 @@ def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
     warp_json = {
         "outbounds": [
             {
-                "protocol": "wireguard",
+                "type": "wireguard",
                 "settings": settings,
                 "tag": "warp"
             }
