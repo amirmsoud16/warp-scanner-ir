@@ -192,12 +192,17 @@ def scan_ip_optimized(ip, n_random_ports):
     }
 
 def show_results_boxed(results):
+    clear_screen()
+    GREEN = '\033[92m'
+    RESET = '\033[0m'
     lines = ["--- Best IPs ---"]
     for b in results:
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
         lines.append(f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}")
+    print(GREEN, end='')
     print_boxed(lines)
+    print(RESET, end='')
 
 def ask_wireguard_config(ip, port):
     print_boxed([f"Do you want a WireGuard config for this IP?", f"{ip}:{port}", "1. Yes", "2. No"])
@@ -234,8 +239,16 @@ def show_wireguard_config(ip, port):
         f"wg://{warp_pubkey}@{ip}:{port}?privatekey={private_key}"
         f"&address={address}&dns={dns}&allowedips={allowed_ips.replace(' ', '')}&persistentkeepalive={keepalive}"
     )
+    clear_screen()
+    # رنگ سبز برای باکس کانفیک (ANSI)
+    GREEN = '\033[92m'
+    RESET = '\033[0m'
+    print(GREEN, end='')
     print_boxed(["WireGuard config:"] + config)
     print_boxed(["Quick wg:// link:", uri])
+    print(RESET, end='')
+    input("Press Enter to exit...")
+    clear_screen()
 
 def print_progress(current, total, message="Progress"):
     percent = int((current / total) * 100) if total else 100
@@ -276,31 +289,24 @@ def do_scan(filename, my_country):
             all_ips.append(str(ip))
     total_ips = len(all_ips)
     print_boxed([f"Total available IPs: {total_ips}"])
+    n_ip = 100
     while True:
-        try:
-            n_ip = int(input(f"How many IPs do you want to test? (1-{total_ips}): ").strip())
-            if 1 <= n_ip <= total_ips:
-                break
-        except Exception:
-            pass
-        print("Please enter a valid number.")
-    while True:
-        port_mode = input("Test only main ports (2408/UDP, 443/TCP/UDP)? [Y/n]: ").strip().lower()
-        if port_mode in ["", "y", "yes"]:
+        port_mode = input("Which ports to test? [1] Main ports (2408/UDP, 443/TCP/UDP)  [2] 100 random ports (900-10000): ").strip()
+        if port_mode in ["1", "main", "m", ""]:
             use_random_ports = False
             break
-        elif port_mode in ["n", "no"]:
+        elif port_mode in ["2", "random", "r"]:
             use_random_ports = True
             break
         else:
-            print("Please enter Y or N.")
+            print("Please enter 1 for main or 2 for random.")
     selected_ips = random.sample(all_ips, n_ip)
     print(f'Total IPs to scan: {len(selected_ips)}')
     results = []
     total = len(selected_ips)
     for idx, ip in enumerate(selected_ips, 1):
         if use_random_ports:
-            res = scan_ip_optimized(ip, PORTS_RANDOM_COUNT)
+            res = scan_ip_random_ports(ip, 100)
         else:
             res = scan_ip_optimized(ip, 0)
         if res['best']:
@@ -315,6 +321,22 @@ def do_scan(filename, my_country):
             print_boxed(["Config not generated."])
     else:
         print_boxed(["No suitable IP found."])
+
+def scan_ip_random_ports(ip, n_random_ports):
+    main_ports = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
+    random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(900, 10001), n_random_ports)]
+    best, results = test_ip_ports_optimized(ip, main_ports, random_ports)
+    country, city, org = geoip_lookup(ip)
+    icmp_latency = real_icmp_ping(ip)
+    return {
+        'ip': ip,
+        'results': results,
+        'best': best,
+        'country': country,
+        'city': city,
+        'org': org,
+        'icmp_latency': icmp_latency
+    }
 
 if icmp_ping is None:
     print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
