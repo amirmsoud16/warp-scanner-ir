@@ -38,7 +38,7 @@ PORTS_RANDOM_COUNT = 500
 PORT_RANGE = (1000, 60000)
 IPS_PER_RANGE = 100
 TIMEOUT = 0.4
-MAX_WORKERS = 1000
+MAX_WORKERS = 150
 GEOIP_URL = 'https://ipinfo.io/{ip}/json'
 
 # --- Display Tools ---
