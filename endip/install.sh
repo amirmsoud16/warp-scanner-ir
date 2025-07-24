@@ -282,7 +282,7 @@ endipresult() {
 	else
 		echo -e "${red} No valid IP addresses found.${rest}"
 	fi
-	echo -en "${yellow}برای بازگشت به منو اینتر بزنید...${rest}"
+	echo -en "${yellow}Press Enter to return to the menu...${rest}"
 	read -r
 	rm warpendpoint >/dev/null 2>&1
 	rm -rf ip.txt
