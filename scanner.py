@@ -193,15 +193,17 @@ def scan_ip_optimized(ip, n_random_ports):
 
 def test_download_speed(ip, port):
     try:
-        url = f'http://{ip}:{port}/speedtest/random4000x4000.jpg'
+        url = f'http://{ip}:{port}/speedtest/random4000x4000.jpg'  # Example URL, might need adjustment
         start = time.time()
         r = requests.get(url, timeout=3, stream=True)
         total = 0
         for chunk in r.iter_content(1024):
             total += len(chunk)
-            if total > 100*1024:  # فقط 100KB دانلود کن
+            if total > 1.5 * 1024 * 1024:  # Download only 1.5MB
                 break
         elapsed = time.time() - start
+        if elapsed == 0:
+            return 'N/A'
         speed_mbps = (total * 8) / (elapsed * 1_000_000)
         return f'{speed_mbps:.2f} Mbps'
     except Exception:
@@ -211,18 +213,23 @@ def show_results_boxed(results, show_download=False):
     clear_screen()
     COLORS = ['\033[92m', '\033[93m', '\033[94m', '\033[91m', '\033[95m', '\033[96m', '\033[90m']
     RESET = '\033[0m'
-    # مرتب‌سازی بر اساس کمترین ICMP Ping
+    # Sort by lowest ICMP Ping
     results_sorted = sorted(
         (b for b in results if b['best'] and b.get('icmp_latency')),
         key=lambda x: x['icmp_latency']
     )
     lines = ["--- Best IPs (sorted by ICMP Ping) ---"]
+    # فقط برای 10 آی‌پی برتر تست دانلود انجام بده
+    download_speeds = [None] * 10
+    if show_download:
+        for idx, b in enumerate(results_sorted[:10]):
+            download_speeds[idx] = test_download_speed(b['ip'], b['best']['port'])
     for idx, b in enumerate(results_sorted[:10]):
         icmp_lat = b.get('icmp_latency')
         icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
         line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}"
         if show_download:
-            speed = test_download_speed(b['ip'], b['best']['port'])
+            speed = download_speeds[idx] if idx < len(download_speeds) else 'N/A'
             line += f" | Download: {speed}"
         color = COLORS[idx % len(COLORS)]
         lines.append(f"{color}{line}{RESET}")
