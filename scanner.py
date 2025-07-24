@@ -246,6 +246,8 @@ def generate_private_key():
 
 def show_wireguard_config(ip, port):
     import base64
+    import sys
+    import platform
     public_key = 'm+ZkK4G8C3yUeJ8V+RaHcRUW2KIiMzZk1K+1vF3yXwE='
     endpoint = f'{ip}:{port}'
     config = f'''[Interface]
@@ -258,28 +260,30 @@ PublicKey = {public_key}
 AllowedIPs = 0.0.0.0/0
 Endpoint = {endpoint}
 PersistentKeepalive = 25'''
-    config_b64 = base64.b64encode(config.encode()).decode()
-    wgcf_uri = f'wgcf://{config_b64}'
     print("\033[96m==== WireGuard Config ====" + "\033[0m")
     print(config)
-    print("\n\033[92m==== wgcf:// URI (for v2rayN) ====" + "\033[0m")
-    print(wgcf_uri)
-    # ذخیره کانفیک
+    # ذخیره کانفیک فقط به صورت فایل conf
     while True:
         name = input("Enter a name to save this config (or leave empty to skip): ").strip()
         if name == "":
             break
-        os.makedirs("configs", exist_ok=True)
-        filename = os.path.join("configs", f"{name}.conf")
-        urlfile = os.path.join("configs", f"{name}.url")
+        # تشخیص ترماکس
+        is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+        if is_termux:
+            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+            if not os.path.isdir(save_dir):
+                # مسیر جایگزین برای دانلودها در ترماکس
+                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+        else:
+            save_dir = os.path.dirname(os.path.abspath(__file__))
+        os.makedirs(save_dir, exist_ok=True)
+        filename = os.path.join(save_dir, f"{name}.conf")
         if os.path.exists(filename):
             print("A config with this name already exists. Choose another name.")
             continue
         with open(filename, "w") as f:
             f.write(config)
-        with open(urlfile, "w") as f:
-            f.write(f"{wgcf_uri}\n")
-        print(f"Config saved as configs/{name}.conf and URL as configs/{name}.url")
+        print(f"Config saved as {filename}")
         break
     print("\nPress Enter to return to menu...")
     input()
@@ -303,14 +307,9 @@ def show_saved_configs(view_only=False):
         print(f"{idx}- {os.path.splitext(fname)[0]}")
     def show_both(idx):
         conf_file = os.path.join(configs_dir, files[idx-1])
-        url_file = conf_file[:-5] + ".url"
         print("\n\033[96m==== Config Content ====" + "\033[0m")
         with open(conf_file, "r") as f:
             print(f.read())
-        if os.path.exists(url_file):
-            print("\n\033[92m==== URLs ====" + "\033[0m")
-            with open(url_file, "r") as f:
-                print(f.read())
     if view_only:
         try:
             num = int(input("Enter config number to view: ").strip())
@@ -323,9 +322,9 @@ def show_saved_configs(view_only=False):
         print("\nPress Enter to return to menu...")
         input()
         return
-    # منوی کوچک برای مشاهده/حذف/خروج
+    # منوی کوچک برای مشاهده/حذف/خروج/ذخیره دوباره
     while True:
-        print("\n[1] View config\n[2] Delete config\n[0] Exit")
+        print("\n[1] View config\n[2] Delete config\n[3] Save again to Downloads/WARPS\n[0] Exit")
         action = input("Enter your choice: ").strip()
         if action == "1":
             try:
@@ -343,13 +342,43 @@ def show_saved_configs(view_only=False):
                 num = int(input("Enter config number to delete: ").strip())
                 if 1 <= num <= len(files):
                     os.remove(os.path.join(configs_dir, files[num-1]))
-                    url_file = os.path.join(configs_dir, files[num-1][:-5] + ".url")
-                    if os.path.exists(url_file):
-                        os.remove(url_file)
                     print("Config deleted.")
                     files = [f for f in os.listdir(configs_dir) if f.endswith(".conf")]
                     for idx, fname in enumerate(files, 1):
                         print(f"{idx}- {os.path.splitext(fname)[0]}")
+                else:
+                    print("Invalid number.")
+            except Exception:
+                print("Invalid input.")
+            print("\nPress Enter to return to menu...")
+            input()
+        elif action == "3":
+            try:
+                num = int(input("Enter config number to save again: ").strip())
+                if 1 <= num <= len(files):
+                    import sys
+                    conf_file = os.path.join(configs_dir, files[num-1])
+                    with open(conf_file, "r") as f:
+                        conf_content = f.read()
+                    new_name = input("Enter new name for the config file: ").strip()
+                    if not new_name:
+                        print("No name entered.")
+                        continue
+                    is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+                    if is_termux:
+                        save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+                        if not os.path.isdir(save_dir):
+                            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+                    else:
+                        save_dir = os.path.dirname(os.path.abspath(__file__))
+                    os.makedirs(save_dir, exist_ok=True)
+                    new_file = os.path.join(save_dir, f"{new_name}.conf")
+                    if os.path.exists(new_file):
+                        print("A config with this name already exists in the target folder.")
+                        continue
+                    with open(new_file, "w") as f:
+                        f.write(conf_content)
+                    print(f"Config saved as {new_file}")
                 else:
                     print("Invalid number.")
             except Exception:
