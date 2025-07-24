@@ -63,20 +63,16 @@ for file in "${FILES[@]}"; do
     echo "$file downloaded."
 done
 
-# Create launcher script in WARPS_DIR
-cat > "$WARPS_DIR/WARPS" <<EOF
-#!/bin/bash
-python3 "\$HOME/WARPS/scanner.py"
-EOF
-chmod +x "$WARPS_DIR/WARPS"
-
-# Optionally add to $HOME/bin for easy access
+# Create launcher script in $HOME/bin/WARP
 if [ ! -d "$HOME/bin" ]; then
     mkdir -p "$HOME/bin"
 fi
-cp "$WARPS_DIR/WARPS" "$HOME/bin/WARPS"
+cat > "$HOME/bin/WARP" <<EOF
+#!/bin/bash
+cd "\$HOME/WARPS"
+python3 scanner.py
+EOF
+chmod +x "$HOME/bin/WARP"
 export PATH="$HOME/bin:$PATH"
 
-echo "[+] Installation complete! Run 'WARPS' from anywhere to start the menu."
-cd "$WARPS_DIR"
-python3 scanner.py 
+echo "[+] Installation complete! Run 'WARP' from anywhere to start the menu." 
