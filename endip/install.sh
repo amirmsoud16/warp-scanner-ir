@@ -10,8 +10,6 @@ cyan='\033[0;36m'
 magenta='\033[0;35m'
 rest='\033[0m'
 
-echo -e "${magenta}Test Magenta${rest}"
-
 case "$(uname -m)" in
 x86_64 | x64 | amd64)
 	cpu=amd64
