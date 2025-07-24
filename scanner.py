@@ -1,430 +1,380 @@
+#!/usr/bin/env python3
 """
-Warp Anycast IP & Port Scanner
-============================
-
-A professional tool to find the best IP and port for Warp (Cloudflare) with low ping and closest geographic location to your internet.
-
-Features:
-- Scans a list of IPs and ports to find the best (lowest ping) endpoint.
-- Generates a ready-to-use Hiddify/Sing-box (Warp) JSON config for the best IP.
-
-Usage:
-    python3 scanner.py
-
-Requirements:
-    - Python 3.6 or newer
-    - requests
-    - urllib3 (usually installed with requests)
-    - ping3 (optional, for real ICMP ping)
-
-Install requirements:
-    pip install requests urllib3 ping3
-
+WARP Hiddify Config Generator - Professional Edition
+Author: amiri | github.com/amirmsoud16
 """
+import os, sys, random, time, requests, json, urllib.request, re, argparse, subprocess
+from functools import partial
 
-import ipaddress
-import random
-import socket
-import time
-import concurrent.futures
-import requests
-import sys
-import base64
-import secrets
-import threading
-import itertools
-import os
-
-# اطمینان از وجود $HOME/bin در PATH برای اجرای wgcf
-home_bin = os.path.join(os.environ.get('HOME', ''), 'bin')
-if home_bin and home_bin not in os.environ.get('PATH', ''):
-    os.environ['PATH'] = f"{home_bin}:{os.environ.get('PATH', '')}"
-
-try:
-    from ping3 import ping as icmp_ping
-except ImportError:
-    icmp_ping = None
-
-# Settings
-IPV4_FILE = 'ips-v4.txt'
-IPV6_FILE = 'ips-v6.txt'
-PORTS_MAIN = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
-PORTS_RANDOM_COUNT = 500
-PORT_RANGE = (1000, 60000)
-IPS_PER_RANGE = 100
-TIMEOUT = 0.4
-MAX_WORKERS = 150
-GEOIP_URL = 'https://ipinfo.io/{ip}/json'
-
-# --- Display Tools ---
-def print_boxed(text_lines):
-    width = max(len(line) for line in text_lines) + 4
-    print("\n" + "┌" + "─" * (width - 2) + "┐")
-    for line in text_lines:
-        print("│ " + line.ljust(width - 3) + "│")
-    print("└" + "─" * (width - 2) + "┘\n")
-
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
-
-# افزودن گزینه به منو
-
-def main_menu():
-    while True:
-        clear_screen()
-        print_boxed([
-            " WARP SCANNER MENU ",
-            "1. Scan IPv4",
-            "2. Scan IPv6",
-            "0. Exit"
-        ])
-        choice = input("Enter your choice: ").strip()
-        if choice == "1":
-            do_scan(IPV4_FILE)
-        elif choice == "2":
-            do_scan(IPV6_FILE)
-        elif choice == "0":
-            print("Goodbye!")
-            break
+# --- Dependency Management ---
+def ensure_package(pkg, import_name=None):
+    import importlib
+    try:
+        importlib.import_module(import_name or pkg)
+        return True
+    except ImportError:
+        print(f"[!] {pkg} is not installed.")
+        ans = input(f"Do you want to install {pkg}? [Y/n]: ").strip().lower()
+        if ans in ["", "y", "yes", "1"]:
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+                print(f"[+] {pkg} installed. Please rerun the program.")
+                sys.exit(0)
+            except Exception as e:
+                print(f"[!] Failed to install {pkg}: {e}")
+                sys.exit(1)
         else:
-            print("Invalid choice. Press Enter...")
-            input()
+            print(f"[!] {pkg} is required for best experience. Continuing without it.")
+            return False
 
-# --- GeoIP ---
-def get_my_location():
+# --- Color and Banner Utilities ---
+def try_import_colorama():
     try:
-        r = requests.get('http://ip-api.com/json/', timeout=5)
-        data = r.json()
-        return {
-            'ip': data.get('query', ''),
-            'country': data.get('country', ''),
-            'city': data.get('city', '')
-        }
-    except Exception:
-        return {'ip': '', 'country': '', 'city': ''}
+        from colorama import init, Fore, Style
+        init(autoreset=True)
+        return True, Fore, Style
+    except ImportError:
+        return False, None, None
 
-def geoip_lookup(ip):
+# --- Table Utility ---
+def try_import_tabulate():
     try:
-        r = requests.get(f'http://ip-api.com/json/{ip}', timeout=2)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get('country', ''), data.get('city', ''), data.get('org', '')
-    except Exception:
-        pass
-    return '', '', ''
+        from tabulate import tabulate
+        return tabulate
+    except ImportError:
+        return None
 
-# --- IP/Port Test ---
-def load_cidr_list(filename):
-    with open(filename, 'r') as f:
-        return [line.strip() for line in f if line.strip() and not line.startswith('#')]
+# --- Main Script ---
+# Check for colorama and tqdm (offer install if missing)
+COLOR, Fore, Style = try_import_colorama()
+if not COLOR:
+    ensure_package('colorama')
+try:
+    from tqdm import tqdm
+except ImportError:
+    ensure_package('tqdm')
 
-def random_ip_from_cidr(cidr):
-    net = ipaddress.ip_network(cidr, strict=False)
-    if net.num_addresses < 4:
-        return str(net.network_address)
-    if isinstance(net, ipaddress.IPv4Network):
-        hosts = list(net.hosts())
-        return str(random.choice(hosts))
-    else:
-        return str(random.choice(list(net.hosts())))
+TABULATE = try_import_tabulate()
 
-def random_ports(count, exclude_ports=None):
-    exclude_ports = exclude_ports or set()
-    ports = set()
-    while len(ports) < count:
-        p = random.randint(*PORT_RANGE)
-        if p not in exclude_ports:
-            ports.add(p)
-    return list(ports)
 
-def ping_tcp(ip, port, timeout=TIMEOUT):
+def c(text, color):
+    """Colorize text if colorama is available."""
+    if not COLOR:
+        return text
+    return getattr(Fore, color.upper(), Fore.WHITE) + str(text) + Style.RESET_ALL
+
+def banner():
+    """Prints a beautiful ASCII banner and welcome message."""
+    art = r"""
+ __        __   _                            _  _  _           _           
+ \ \      / /__| | ___ ___  _ __ ___   ___  | || || | ___  ___| |_ ___ _ __ 
+  \ \ /\ / / _ \ |/ __/ _ \| '_ ` _ \ / _ \ | || || |/ _ \/ __| __/ _ \ '__|
+   \ V  V /  __/ | (_| (_) | | | | | |  __/ | || || |  __/ (__| ||  __/ |   
+    \_/\_/ \___|_|\___\___/|_| |_| |_|\___| |_||_||_|\___|\___|\__\___|_|   
+"""
+    print(c(art, 'cyan'))
+    print(c("WARP Hiddify Config Generator", 'magenta'))
+    print(c("by amiri | github.com/amirmsoud16", 'yellow'))
+    print()
+    print(c("Welcome! This tool scans IPs and generates a ready-to-use Hiddify/Sing-box config with the best IP.", 'green'))
+    print()
+
+def print_boxed(lines, color='green'):
+    """Prints a box around the given lines with optional color."""
+    width = max(len(line) for line in lines) + 4
+    border = c("\n" + "┌" + "─" * (width - 2) + "┐", color)
+    print(border)
+    for line in lines:
+        print(c("│ " + line.ljust(width - 3) + "│", color))
+    print(c("└" + "─" * (width - 2) + "┘\n", color))
+
+# --- Input and File Utilities ---
+def load_ips(filename):
+    """Loads IPs from a file, ignoring comments and empty lines."""
     try:
-        start = time.time()
+        with open(filename, 'r') as f:
+            return [line.strip() for line in f if line.strip() and not line.startswith('#')]
+    except Exception as e:
+        print_boxed([f"Error reading {filename}: {e}"], 'red')
+        return []
+
+def choose_filename(default_name):
+    """Prompt user for a filename, with a default."""
+    name = input(f"Enter config filename (default: {default_name}): ").strip()
+    return name if name else default_name
+
+# --- Scanning and Progress ---
+def ping_ip(ip, port=443, timeout=0.4):
+    """Ping an IP on the given port using TCP. Returns latency in ms or None on failure."""
+    import socket
+    start = time.time()
+    try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
         s.connect((ip, port))
         s.close()
         latency = (time.time() - start) * 1000
-        return True, latency
-    except Exception:
-        return False, None
-
-def ping_udp(ip, port, timeout=TIMEOUT):
-    try:
-        start = time.time()
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(timeout)
-        s.sendto(b'\x00', (ip, port))
-        latency = (time.time() - start) * 1000
-        s.close()
-        return True, latency
-    except Exception:
-        return False, None
-
-def test_ip_ports_optimized(ip, main_ports, random_ports):
-    # ابتدا پورت‌های اصلی
-    results = []
-    open_ports = []
-    for port, proto in main_ports:
-        if proto == 'tcp':
-            ok, latency = ping_tcp(ip, port)
-        else:
-            ok, latency = ping_udp(ip, port)
-        results.append({'port': port, 'proto': proto, 'ok': ok, 'latency': latency})
-        if ok:
-            open_ports.append({'port': port, 'proto': proto, 'latency': latency})
-    # اگر هیچ پورت اصلی باز نبود، پورت‌های رندوم را تست کن
-    if not open_ports:
-        for port, proto in random_ports:
-            if proto == 'tcp':
-                ok, latency = ping_tcp(ip, port)
-            else:
-                ok, latency = ping_udp(ip, port)
-            results.append({'port': port, 'proto': proto, 'ok': ok, 'latency': latency})
-            if ok:
-                open_ports.append({'port': port, 'proto': proto, 'latency': latency})
-    if not open_ports:
-        return None, results
-    best = min(open_ports, key=lambda x: x['latency'] if x['latency'] else 9999)
-    return best, results
-
-def real_icmp_ping(ip, timeout=TIMEOUT):
-    if icmp_ping is None:
-        return None
-    try:
-        latency = icmp_ping(ip, timeout=timeout)
-        if latency is not None:
-            return latency * 1000  # ms
-        else:
-            return None
+        return latency
     except Exception:
         return None
 
-def scan_ip_optimized(ip, n_random_ports):
-    main_ports = [(2408, 'udp'), (443, 'tcp'), (443, 'udp')]
-    random_ports = [(p, random.choice(['tcp', 'udp'])) for p in random.sample(range(1000, 60000), n_random_ports)]
-    best, port_results = test_ip_ports_optimized(ip, main_ports, random_ports)
-    icmp_latency = real_icmp_ping(ip)
-    country, city, org = geoip_lookup(ip)
-    return {
-        'ip': ip,
-        'best': best,
-        'icmp_latency': icmp_latency,
-        'country': country,
-        'city': city,
-        # سایر فیلدها در صورت نیاز
-    }
-
-def test_download_speed(ip, port):
+def progress_bar(iterable, total=None, desc="", color='cyan'):
     try:
-        url = f'http://{ip}:{port}/speedtest/random4000x4000.jpg'  # Example URL, might need adjustment
-        start = time.time()
-        r = requests.get(url, timeout=3, stream=True)
-        total = 0
-        for chunk in r.iter_content(1024):
-            total += len(chunk)
-            if total > 1.5 * 1024 * 1024:  # Download only 1.5MB
-                break
-        elapsed = time.time() - start
-        if elapsed == 0:
-            return 'N/A'
-        speed_mbps = (total * 8) / (elapsed * 1_000_000)
-        return f'{speed_mbps:.2f} Mbps'
-    except Exception:
-        return 'N/A'
-
-def show_results_boxed(results, show_download=False):
-    clear_screen()
-    COLORS = ['\033[92m', '\033[93m', '\033[94m', '\033[91m', '\033[95m', '\033[96m', '\033[90m']
-    RESET = '\033[0m'
-    lines = ["--- Best IPs (sorted by ICMP Ping) ---"]
-    for idx, b in enumerate(results):
-        icmp_lat = b.get('icmp_latency')
-        icmp_str = f"{icmp_lat:.0f} ms" if icmp_lat else "N/A"
-        line = f"{b['ip']}:{b['best']['port']} {b['best']['proto']} | {b['country']} {b['city']} | ICMP Ping: {icmp_str}"
-        color = COLORS[idx % len(COLORS)]
-        lines.append(f"{color}{line}{RESET}")
-    print_boxed(lines)
-
-def ask_wireguard_config(ip, port):
-    print_boxed([f"Do you want a WireGuard config for this IP?", f"{ip}:{port}", "1. Yes", "2. No"])
-    while True:
-        ans = input("Your choice: ").strip()
-        if ans in ["1", "2"]:
-            return ans == "1"
-
-def generate_private_key():
-    # Generate 32-byte private key and convert to base64 (compatible with WireGuard)
-    key = secrets.token_bytes(32)
-    return base64.b64encode(key).decode()
-
-# Remove show_wireguard_config, show_saved_configs, get_wgcf_private_key_and_config, and all config file handling logic
-
-def print_progress(current, total, message="Progress"):
-    percent = int((current / total) * 100) if total else 100
-    bar = ('#' * (percent // 2)).ljust(50)
-    sys.stdout.write(f"\r{message}: [{bar}] {percent}% ({current}/{total})")
-    sys.stdout.flush()
-    if current == total:
+        from tqdm import tqdm
+        return tqdm(iterable, total=total, desc=desc, ncols=70)
+    except ImportError:
+        if desc:
+            print(c(f"[!] tqdm not installed. Progress bar will be basic. To install: pip install tqdm", 'yellow'))
+        total = total or len(iterable)
+        for i, item in enumerate(iterable, 1):
+            percent = int((i / total) * 100)
+            bar = ('#' * (percent // 2)).ljust(50)
+            sys.stdout.write(f"\r{desc}: [{bar}] {percent}% ({i}/{total})")
+            sys.stdout.flush()
+            yield item
         print()
 
-class Spinner:
-    def __init__(self, message="Loading..."):
-        self.spinner = itertools.cycle(['|', '/', '-', '\\'])
-        self.stop_running = False
-        self.message = message
-        self.thread = threading.Thread(target=self.run)
+# --- Hiddify Config Generation ---
+def get_hiddify_keys():
+    """Fetches WireGuard keys and reserved values from the API."""
+    try:
+        output = urllib.request.urlopen("https://api.zeroteam.top/warp?format=sing-box", timeout=30).read().decode('utf-8')
+    except Exception:
+        output = requests.get("https://api.zeroteam.top/warp?format=sing-box", timeout=30).text
+    Address_pattern = r'"2606:4700:[0-9a-f:]+/128"'
+    private_key_pattern = r'"private_key":"[0-9a-zA-Z/+]+="'
+    reserved_pattern = r'"reserved":\[[0-9]+(,[0-9]+){2}\]'
+    Address_search = re.search(Address_pattern, output)
+    private_key_search = re.search(private_key_pattern, output)
+    reserved_search = re.search(reserved_pattern, output)
+    Address_key = Address_search.group(0).replace('"', '') if Address_search else None
+    private_key = private_key_search.group(0).split(':')[1].replace('"', '') if private_key_search else None
+    reserved = reserved_search.group(0).replace('"reserved":', '').replace('"', '') if reserved_search else None
+    return Address_key, private_key, reserved
 
-    def run(self):
-        while not self.stop_running:
-            sys.stdout.write(f"\r{self.message} {next(self.spinner)}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-        sys.stdout.write('\r' + ' ' * (len(self.message) + 2) + '\r')
-
-    def start(self):
-        self.stop_running = False
-        self.thread.start()
-
-    def stop(self):
-        self.stop_running = True
-        self.thread.join()
-
-# ویرایش do_scan:
-def do_scan(filename):
-    cidrs = load_cidr_list(filename)
-    all_ips = []
-    total_cidrs = len(cidrs)
-    for idx, cidr in enumerate(cidrs, 1):
-        net = ipaddress.ip_network(cidr, strict=False)
-        for ip in net.hosts():
-            all_ips.append(str(ip))
-        print_progress(idx, total_cidrs, "Building IP list")
-    sys.stdout.write("\n")
-    print_boxed([f"Total available IPs: {len(all_ips)}"])
-    n_ip = 20  # تعداد IPهایی که تست می‌شوند
-    selected_ips = random.sample(all_ips, n_ip)
-    print(f'Total IPs to scan: {len(selected_ips)}')
-    results = []
-    total = len(selected_ips)
-    for idx, ip in enumerate(selected_ips, 1):
-        res = scan_ip_optimized(ip, 0)  # فقط پورت‌های اصلی
-        if res['best']:
-            results.append(res)
-        print_progress(idx, total, "Scanning IPs and ports")
-    # مرتب‌سازی بر اساس کمترین ICMP Ping
-    results_sorted = sorted(
-        (b for b in results if b['best'] and b.get('icmp_latency') and b['icmp_latency'] > 0),
-        key=lambda x: x['icmp_latency']
-    )
-    show_results_boxed(results_sorted[:10], show_download=False)
-    if results_sorted:
-        best = results_sorted[0]
-        answer = input("Do you want to generate a Hiddify config for the best IP? [y/N]: ").strip().lower()
-        if answer in ["y", "yes", "1"]:
-            def get_hiddify_keys():
-                import urllib.request, requests, re
-                try:
-                    output = urllib.request.urlopen("https://api.zeroteam.top/warp?format=sing-box", timeout=30).read().decode('utf-8')
-                except Exception:
-                    output = requests.get("https://api.zeroteam.top/warp?format=sing-box", timeout=30).text
-                Address_pattern = r'"2606:4700:[0-9a-f:]+/128"'
-                private_key_pattern = r'"private_key":"[0-9a-zA-Z/+]+="'
-                reserved_pattern = r'"reserved":\[[0-9]+(,[0-9]+){2}\]'
-                Address_search = re.search(Address_pattern, output)
-                private_key_search = re.search(private_key_pattern, output)
-                reserved_search = re.search(reserved_pattern, output)
-                Address_key = Address_search.group(0).replace('"', '') if Address_search else None
-                private_key = private_key_search.group(0).split(':')[1].replace('"', '') if private_key_search else None
-                reserved = reserved_search.group(0).replace('"reserved":', '').replace('"', '') if reserved_search else None
-                return Address_key, private_key, reserved
-            Address_key, private_key, reserved = get_hiddify_keys()
-            public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-            warp_json = {
-                "outbounds": [
-                    {
-                        "protocol": "wireguard",
-                        "settings": {
-                            "address": [
-                                "172.16.0.2/32",
-                                Address_key
-                            ],
-                            "mtu": 1280,
-                            "peers": [
-                                {
-                                    "endpoint": f"{best['ip']}:{best['best']['port']}",
-                                    "publicKey": public_key
-                                }
-                            ],
-                            "reserved": eval(reserved) if reserved else [0,0,0],
-                            "secretKey": private_key
-                        },
-                        "tag": "warp"
-                    },
-                    {"protocol": "dns", "tag": "dns-out"},
-                    {"protocol": "freedom", "settings": {}, "tag": "direct"},
-                    {"protocol": "blackhole", "settings": {"response": {"type": "http"}}, "tag": "block"}
-                ],
-                "policy": {
-                    "levels": {
-                        "8": {
-                            "connIdle": 300,
-                            "downlinkOnly": 1,
-                            "handshake": 4,
-                            "uplinkOnly": 1
-                        }
-                    },
-                    "system": {
-                        "statsOutboundUplink": True,
-                        "statsOutboundDownlink": True
-                    }
-                },
-                "remarks": "hydra",
-                "routing": {
-                    "domainStrategy": "IPIfNonMatch",
-                    "rules": [
+def build_hiddify_config(best_ip, port, Address_key, private_key, reserved):
+    """Builds the Hiddify/Sing-box JSON config for the best IP."""
+    public_key = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+    warp_json = {
+        "outbounds": [
+            {
+                "protocol": "wireguard",
+                "settings": {
+                    "address": [
+                        "172.16.0.2/32",
+                        Address_key
+                    ],
+                    "mtu": 1280,
+                    "peers": [
                         {
-                            "network": "tcp,udp",
-                            "outboundTag": "warp",
-                            "type": "field"
+                            "endpoint": f"{best_ip}:{port}",
+                            "publicKey": public_key
                         }
-                    ]
+                    ],
+                    "reserved": eval(reserved) if reserved else [0,0,0],
+                    "secretKey": private_key
                 },
-                "stats": {}
+                "tag": "warp"
+            },
+            {"protocol": "dns", "tag": "dns-out"},
+            {"protocol": "freedom", "settings": {}, "tag": "direct"},
+            {"protocol": "blackhole", "settings": {"response": {"type": "http"}}, "tag": "block"}
+        ],
+        "policy": {
+            "levels": {
+                "8": {
+                    "connIdle": 300,
+                    "downlinkOnly": 1,
+                    "handshake": 4,
+                    "uplinkOnly": 1
+                }
+            },
+            "system": {
+                "statsOutboundUplink": True,
+                "statsOutboundDownlink": True
             }
-            import json, sys, os
-            config_text = json.dumps(warp_json, indent=2, ensure_ascii=False)
-            print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="])
-            print(config_text)
-            # Save config as .txt
-            is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
-            if is_termux:
-                # Android/Termux: save to Downloads
-                save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
-                if not os.path.isdir(save_dir):
-                    save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
-                os.makedirs(save_dir, exist_ok=True)
-                file_path = os.path.join(save_dir, 'warp_hiddify_config.txt')
-            else:
-                # Linux: save to WARPS folder
-                warps_dir = os.path.expanduser('~/WARPS')
-                os.makedirs(warps_dir, exist_ok=True)
-                file_path = os.path.join(warps_dir, 'warp_hiddify_config.txt')
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(config_text)
-            print_boxed([f"Config saved as {file_path}"])
-            input("Press Enter to return to menu...")
-        else:
-            print_boxed(["Config generation skipped by user."])
-            input("Press Enter to return to menu...")
-    else:
-        print_boxed(["No suitable IP found."])
+        },
+        "remarks": "hydra",
+        "routing": {
+            "domainStrategy": "IPIfNonMatch",
+            "rules": [
+                {
+                    "network": "tcp,udp",
+                    "outboundTag": "warp",
+                    "type": "field"
+                }
+            ]
+        },
+        "stats": {}
+    }
+    return json.dumps(warp_json, indent=2, ensure_ascii=False)
 
-if icmp_ping is None:
-    print_boxed(["[!] For real ICMP ping, please install ping3:", "pip install ping3"])
+# --- Saving and Output ---
+def save_config(config_text, is_termux, filename):
+    """Saves the config file to Downloads (Android) or ~/WARPS (Linux)."""
+    if is_termux:
+        save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+        if not os.path.isdir(save_dir):
+            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(save_dir, filename)
+    else:
+        warps_dir = os.path.expanduser('~/WARPS')
+        os.makedirs(warps_dir, exist_ok=True)
+        file_path = os.path.join(warps_dir, filename)
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(config_text)
+        print_boxed([f"Config saved as {file_path}"], 'yellow')
+    except Exception as e:
+        print_boxed([f"Failed to save config: {e}"], 'red')
+
+def save_scan_log(log_rows, is_termux, filename):
+    """Saves the scan log as a CSV file in the same folder as the config."""
+    if is_termux:
+        save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'storage', 'downloads')
+        if not os.path.isdir(save_dir):
+            save_dir = os.path.join(os.environ.get('HOME', '/data/data/com.termux/files/home'), 'downloads')
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(save_dir, filename)
+    else:
+        warps_dir = os.path.expanduser('~/WARPS')
+        os.makedirs(warps_dir, exist_ok=True)
+        file_path = os.path.join(warps_dir, filename)
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write('IP,Port,Latency(ms),Status\n')
+            for row in log_rows:
+                f.write(','.join(str(x) for x in row) + '\n')
+        print_boxed([f"Scan log saved as {file_path}"], 'yellow')
+    except Exception as e:
+        print_boxed([f"Failed to save scan log: {e}"], 'red')
+
+# --- Main Logic ---
+def scan_and_generate(ip_file, count=20, port=443, output_name=None, no_color=False, non_interactive=False):
+    """Scans IPs, finds the best, and generates/saves the Hiddify config."""
+    global COLOR
+    if no_color:
+        COLOR = False
+    ips = load_ips(ip_file)
+    if not ips:
+        print_boxed([f"No IPs found in {ip_file}"], 'red')
+        return
+    print(c(f"Testing {min(count, len(ips))} IPs. Please wait...", 'cyan'))
+    best_ip = None
+    best_latency = None
+    scan_log = []
+    scan_rows = []
+    for ip in progress_bar(random.sample(ips, min(count, len(ips))), total=min(count, len(ips)), desc="Scanning", color='magenta'):
+        latency = ping_ip(ip, port=port)
+        if latency is not None:
+            print(c(f"{ip}:{port} - {latency:.1f} ms", 'green'))
+            scan_rows.append([ip, port, f"{latency:.1f}", "OK"])
+            if best_latency is None or latency < best_latency:
+                best_ip, best_latency = ip, latency
+        else:
+            print(c(f"{ip}:{port} - timeout", 'red'))
+            scan_rows.append([ip, port, "timeout", "FAIL"])
+    # Show table of results
+    if TABULATE:
+        from tabulate import tabulate
+        print(tabulate(scan_rows, headers=["IP", "Port", "Latency(ms)", "Status"], tablefmt="fancy_grid"))
+    else:
+        print_boxed(["[!] tabulate not installed. Table output will be basic. To install: pip install tabulate"], 'yellow')
+        for row in scan_rows:
+            print(f"{row[0]}:{row[1]} - {row[2]} ms - {row[3]}")
+    if not best_ip:
+        print_boxed(["No reachable IP found."], 'red')
+        return
+    print_boxed([f"Best IP: {best_ip}:{port} ({best_latency:.1f} ms)"])
+    if not non_interactive:
+        answer = input(c("Do you want to generate a Hiddify config for this IP? [y/N]: ", 'yellow')).strip().lower()
+        if answer not in ["y", "yes", "1"]:
+            print_boxed(["Config generation skipped by user."], 'yellow')
+            return
+    Address_key, private_key, reserved = get_hiddify_keys()
+    config_text = build_hiddify_config(best_ip, port, Address_key, private_key, reserved)
+    print_boxed(["==== Hiddify/Sing-box Warp JSON Config (Best Ping) ===="], 'cyan')
+    print(c(config_text, 'white'))
+    is_termux = 'com.termux' in sys.executable or 'termux' in sys.executable or 'ANDROID_STORAGE' in os.environ
+    filename = output_name or (choose_filename('warp_hiddify_config.txt') if not non_interactive else 'warp_hiddify_config.txt')
+    save_config(config_text, is_termux, filename)
+    # Ask to save scan log
+    if not non_interactive:
+        save_log = input(c("Do you want to save the scan log as CSV? [y/N]: ", 'yellow')).strip().lower()
+        if save_log in ["y", "yes", "1"]:
+            log_name = os.path.splitext(filename)[0] + "_scanlog.csv"
+            save_scan_log(scan_rows, is_termux, log_name)
+    if not non_interactive:
+        input(c("Press Enter to exit...", 'magenta'))
+
+# --- CLI and Entry Point ---
+def print_help():
+    help_text = f"""
+WARP Hiddify Config Generator - CLI Usage
+
+Options:
+  --ipv4            Use ips-v4.txt for scanning (default if neither --ipv4 nor --ipv6 is given)
+  --ipv6            Use ips-v6.txt for scanning
+  --count N         Number of IPs to scan (default: 20)
+  --port P          Port to test for ping (default: 443)
+  --output FILE     Output config filename (default: warp_hiddify_config.txt)
+  --no-color        Disable colored output
+  --help            Show this help message and exit
+
+Examples:
+  python3 scanner.py --ipv4 --count 30 --port 443 --output myconfig.txt
+  python3 scanner.py --ipv6 --no-color
+
+If no arguments are given, interactive mode will be used.
+"""
+    print(help_text)
 
 def main():
-    main_menu()
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--ipv4', action='store_true')
+    parser.add_argument('--ipv6', action='store_true')
+    parser.add_argument('--count', type=int, default=20)
+    parser.add_argument('--port', type=int, default=443)
+    parser.add_argument('--output', type=str)
+    parser.add_argument('--no-color', action='store_true')
+    parser.add_argument('--help', action='store_true')
+    args, unknown = parser.parse_known_args()
+
+    if args.help:
+        print_help()
+        return
+
+    # If any CLI arg except --help is given, use non-interactive mode
+    non_interactive = any([
+        args.ipv4, args.ipv6, args.count != 20, args.port != 443, args.output, args.no_color
+    ])
+
+    if non_interactive:
+        banner()
+        ip_file = 'ips-v4.txt' if args.ipv4 or not args.ipv6 else 'ips-v6.txt'
+        scan_and_generate(ip_file, count=args.count, port=args.port, output_name=args.output, no_color=args.no_color, non_interactive=True)
+    else:
+        banner()
+        print_boxed(["1. Scan IPv4", "2. Scan IPv6", "0. Exit"], 'magenta')
+        choice = input(c("Enter your choice: ", 'yellow')).strip()
+        if choice == "1":
+            ip_file = "ips-v4.txt"
+        elif choice == "2":
+            ip_file = "ips-v6.txt"
+        else:
+            print(c("Goodbye!", 'cyan'))
+            return
+        # Ask for count and port interactively
+        try:
+            count = int(input(c("How many IPs to scan? (default 20): ", 'yellow')).strip() or "20")
+        except Exception:
+            count = 20
+        try:
+            port = int(input(c("Which port to test? (default 443): ", 'yellow')).strip() or "443")
+        except Exception:
+            port = 443
+        scan_and_generate(ip_file, count=count, port=port)
 
 if __name__ == '__main__':
     main() 
